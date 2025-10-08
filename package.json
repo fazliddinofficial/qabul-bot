@@ -1,0 +1,26 @@
+{
+  "name": "qabul-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fazliddinofficial/qabul-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/fazliddinofficial/qabul-bot/issues"
+  },
+  "homepage": "https://github.com/fazliddinofficial/qabul-bot#readme",
+  "description": "",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "nodemon": "^3.1.10",
+    "telegraf": "^4.16.3"
+  }
+}
