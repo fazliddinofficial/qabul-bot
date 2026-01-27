@@ -20,16 +20,13 @@ bot.start((ctx) => {
   ctx.reply("Salom! Botimizga xush kelibsiz.\n\n" + questions[0]);
 });
 
-// Handle text messages
 bot.on("text", async (ctx) => {
   const userId = ctx.from.id;
   const session = sessions.get(userId);
 
   if (!session) return;
 
-  // Check if current step expects a photo
   if (session.step === 4) {
-    // Step 4 is "Send your photo"
     return ctx.reply("❌ Iltimos, rasm yuboring (matn emas).");
   }
 
@@ -41,14 +38,13 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// Handle photo messages
 bot.on("photo", async (ctx) => {
   const userId = ctx.from.id;
   const session = sessions.get(userId);
 
   if (!session) return;
 
-  const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Highest quality
+  const photo = ctx.message.photo[ctx.message.photo.length - 1];
   session.answers.push({ text: "Photo", fileId: photo.file_id });
   session.step++;
 
@@ -56,7 +52,6 @@ bot.on("photo", async (ctx) => {
     return ctx.reply(questions[session.step]);
   }
 
-  // All questions answered - send to recruiter
   const [name, age, profession, exp, photo_data] = session.answers;
 
   const msg = `
@@ -68,13 +63,11 @@ bot.on("photo", async (ctx) => {
 🆔 Telegram: @${ctx.from.username || "N/A"}
 `;
 
-  // Send text message
   await ctx.telegram.sendMessage(RECRUITER_GROUP, msg, {
     parse_mode: "HTML",
     disable_web_page_preview: true,
   });
 
-  // Send photo
   if (photo_data.fileId) {
     await ctx.telegram.sendPhoto(RECRUITER_GROUP, photo_data.fileId, {
       caption: `📸 ${name.text} rasmi`,
