@@ -8,7 +8,7 @@ const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
-  "To'liq ismingizni kiriting!",
+  "Ism familyangizni kiriting!",
   "Yoshingiz nechida?",
   "Kasbingiz nima?",
   "Qancha yil ish tajribangiz bor?",
