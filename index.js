@@ -11,13 +11,13 @@ const questions = [
   "Ism familyangizni kiriting!",
   "Yoshingiz nechida?",
   "Kasbingiz nima?",
-  "Qancha yil ish tajribangiz bor?",
-  "Rasmingizni yuboring",
+  "Necha yil ish tajribangiz bor?",
+  "Qo'shimcha ma'lumot sifatida rasm yuboring",
 ];
 
 bot.start((ctx) => {
   sessions.set(ctx.from.id, { step: 0, answers: [] });
-  ctx.reply("Salom! Botimizga xush kelibsiz.\n\n" + questions[0]);
+  ctx.reply("Assalomu alaykum! Botimizga xush kelibsiz.\n\n" + questions[0]);
 });
 
 bot.on("text", async (ctx) => {
