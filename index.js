@@ -55,7 +55,6 @@ bot.on("text", async (ctx) => {
   await sendToRecruiter(ctx, session);
 });
 
-// Handle photo messages (only step 0)
 bot.on("photo", async (ctx) => {
   const userId = ctx.from.id;
   const session = sessions.get(userId);
