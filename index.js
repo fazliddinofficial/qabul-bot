@@ -8,11 +8,21 @@ const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
-  "Ism familyangizni kiriting!",
-  "Yoshingiz nechida?",
-  "Kasbingiz nima?",
-  "Necha yil ish tajribangiz bor?",
-  "Qo'shimcha ma'lumot sifatida rasm yuboring",
+  "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan)",
+  "Qaysi yo'nalishda ishlay olasiz? (Fan o'qituvchi, admin)",
+  "I.F.Sh kiriting: (Ism Familiya Sharif)",
+  "Doimiy yashash manzilingizni kiriting: ",
+  "Ma'lumoti (Oliy, o'rta): ",
+  "Oldingi ish joyingiz va lavozimingiz haqida ma'lumot kiriting: (qachon, qayerda, kim bo'lib, qancha vaqt) \n Misol: 2020-yil, Toshkent, ingliz tili o'qituvchisi, 2 yil",
+  "Oilaviy axvolingizni yozing: (turmush qurgan, yoki turmush qurmagan)",
+  "Kompyuterda ishlay olasizmi? (excel, word)",
+  "Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+  "Bizning korxonada qancha muddat ishlay olasiz?",
+  "Otangizni yoki onangizni telefon raqamini kiriting: ",
+  "Til bilish darajangiz: (IELTSda yoki CEFRda,)",
+  "Soat nechidan nechigacha ishlay olasiz?",
+  "Bizda qancha oylikga ishlamoqchisiz?",
+  "Telefon raqamingizni kiriting: ",
 ];
 
 bot.start((ctx) => {
@@ -20,63 +30,143 @@ bot.start((ctx) => {
   ctx.reply("Assalomu alaykum! Botimizga xush kelibsiz.\n\n" + questions[0]);
 });
 
+// Handle text messages (steps 1-14 are all text)
 bot.on("text", async (ctx) => {
   const userId = ctx.from.id;
   const session = sessions.get(userId);
 
   if (!session) return;
 
-  if (session.step === 4) {
-    return ctx.reply("❌ Iltimos, rasm yuboring (matn emas).");
+  // Step 0 MUST be a photo
+  if (session.step === 0) {
+    return ctx.reply("❌ Iltimos, avval foto suratingizni yuboring!");
   }
 
-  session.answers.push({ text: ctx.message.text, fileId: null });
+  // Save text answer
+  session.answers.push(ctx.message.text);
   session.step++;
 
+  // Check if more questions remain
   if (session.step < questions.length) {
     return ctx.reply(questions[session.step]);
   }
+
+  // All questions answered - send to recruiter
+  await sendToRecruiter(ctx, session);
 });
 
+// Handle photo messages (only step 0)
 bot.on("photo", async (ctx) => {
   const userId = ctx.from.id;
   const session = sessions.get(userId);
 
   if (!session) return;
 
+  // Only accept photo at step 0
+  if (session.step !== 0) {
+    return ctx.reply("❌ Hozir matn javob kutilmoqda, rasm emas.");
+  }
+
+  // Save photo file_id
   const photo = ctx.message.photo[ctx.message.photo.length - 1];
-  session.answers.push({ text: "Photo", fileId: photo.file_id });
+  session.answers.push(photo.file_id);
   session.step++;
 
+  // Ask next question
   if (session.step < questions.length) {
     return ctx.reply(questions[session.step]);
   }
+});
 
-  const [name, age, profession, exp, photo_data] = session.answers;
+bot.on("document", async (ctx) => {
+  const userId = ctx.from.id;
+  const session = sessions.get(userId);
+
+  if (!session) return;
+
+  // Only accept at step 0
+  if (session.step !== 0) {
+    return ctx.reply("❌ Hozir matn javob kutilmoqda, rasm emas.");
+  }
+
+  const doc = ctx.message.document;
+
+  // Check if it's an image file
+  const imageTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/jpg",
+    "image/gif",
+    "image/webp",
+  ];
+
+  if (!imageTypes.includes(doc.mime_type)) {
+    return ctx.reply("❌ Iltimos, faqat rasm formatida yuboring (JPG, PNG).");
+  }
+
+  // Save document file_id (works same as photo)
+  session.answers.push(doc.file_id);
+  session.step++;
+
+  // Ask next question
+  if (session.step < questions.length) {
+    return ctx.reply(questions[session.step]);
+  }
+});
+
+// Function to send application to recruiter
+async function sendToRecruiter(ctx, session) {
+  const [
+    photoFileId, // 0 - Photo
+    position, // 1
+    fullName, // 2
+    address, // 3
+    education, // 4
+    prevJob, // 5
+    maritalStatus, // 6
+    computerSkills, // 7
+    lastSalary, // 8
+    workDuration, // 9
+    parentPhone, // 10
+    languageLevel, // 11
+    workHours, // 12
+    expectedSalary, // 13
+    phone, // 14
+  ] = session.answers;
 
   const msg = `
 📩 <b>Yangi ish so'rov</b>
-👤 Ismi: ${name.text}
-🎂 Yoshi: ${age.text}
-💼 Kasbi: ${profession.text}
-⏳ Tajribasi: ${exp.text}
-🆔 Telegram: @${ctx.from.username || "N/A"}
+
+👤 <b>I.F.Sh:</b> ${fullName}
+📍 <b>Manzil:</b> ${address}
+📞 <b>Telefon:</b> ${phone}
+👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${parentPhone}
+
+💼 <b>Yo'nalish:</b> ${position}
+🎓 <b>Ma'lumot:</b> ${education}
+🌐 <b>Til darajasi:</b> ${languageLevel}
+💻 <b>Kompyuter:</b> ${computerSkills}
+
+📋 <b>Oldingi ish:</b> ${prevJob}
+💰 <b>Oxirgi oylik:</b> ${lastSalary}
+💵 <b>Kutilayotgan oylik:</b> ${expectedSalary}
+
+💑 <b>Oilaviy holat:</b> ${maritalStatus}
+⏰ <b>Ish vaqti:</b> ${workHours}
+📅 <b>Ishlash davomiyligi:</b> ${workDuration}
+
+🆔 <b>Telegram:</b> @${ctx.from.username || "N/A"}
 `;
 
-  await ctx.telegram.sendMessage(RECRUITER_GROUP, msg, {
+  // Send photo with caption
+  await ctx.telegram.sendPhoto(RECRUITER_GROUP, photoFileId, {
+    caption: msg,
     parse_mode: "HTML",
-    disable_web_page_preview: true,
   });
 
-  if (photo_data.fileId) {
-    await ctx.telegram.sendPhoto(RECRUITER_GROUP, photo_data.fileId, {
-      caption: `📸 ${name.text} rasmi`,
-    });
-  }
-
-  ctx.reply("So'rovingiz qabul qilindi✅");
-  sessions.delete(userId);
-});
+  ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
+  sessions.delete(ctx.from.id);
+}
 
 bot.launch();
 console.log("Bot is up and running!");
