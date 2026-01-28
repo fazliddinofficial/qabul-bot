@@ -4,18 +4,18 @@ import { config as dotenv } from "dotenv";
 dotenv();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const RECRUITER_GROUP = "@recruting_group";
+const RECRUITER_GROUP = -1001943551822;
+// const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
   {
     id: "photo",
-    text: "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, faqat JPG formatida)",
+    text: "Iltimos savollarga birma-bir javob bering. \n Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, faqat JPG formatida)",
     type: "photo",
     validate: (ctx) => {
       if (ctx.message?.photo) return true;
 
-      // Accept JPG/JPEG documents
       if (ctx.message?.document) {
         const mimeType = ctx.message.document.mime_type;
         const fileName = ctx.message.document.file_name?.toLowerCase() || "";
@@ -64,6 +64,21 @@ const questions = [
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 3,
     errorMsg: "❌ Iltimos, manzilingizni to'liq kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "birthday",
+    text: "Tug'ilgan sanangizni kiriting (DD-MM-YYYY):",
+    type: "text",
+    validate: (ctx) => {
+      const text = ctx.message?.text?.trim();
+      if (!text) return false;
+
+      const regex = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-(19|20)\d{2}$/;
+      return regex.test(text);
+    },
+    errorMsg:
+      "❌ Sana noto‘g‘ri formatda. Iltimos, DD-MM-YYYY ko‘rinishida kiriting.",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
@@ -182,6 +197,16 @@ bot.start((ctx) => {
 });
 
 bot.on("message", async (ctx) => {
+  if (ctx.chat.type === "group" || ctx.chat.type === "supergroup") {
+    console.log("Group ID:", ctx.chat.id);
+    console.log("Group Title:", ctx.chat.title);
+    return;
+  }
+
+  if (ctx.chat.type !== "private") {
+    return;
+  }
+
   const userId = ctx.from.id;
   const session = sessions.get(userId);
 
@@ -212,6 +237,7 @@ async function sendToRecruiter(ctx, session) {
 📩 <b>Yangi ish so'rov</b>
 
 👤 <b>I.F.Sh:</b> ${answers.fullName}
+🗓️ <b>Tug'ilgan sanasi:</b> ${answers.birthday}
 📍 <b>Manzil:</b> ${answers.address}
 📞 <b>Telefon:</b> ${answers.phone}
 👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${answers.parentPhone}
@@ -229,15 +255,22 @@ async function sendToRecruiter(ctx, session) {
 ⏰ <b>Ish vaqti:</b> ${answers.workHours}
 📅 <b>Ishlash davomiyligi:</b> ${answers.workDuration}
 
-🆔 <b>Telegram:</b> @${ctx.from.username || "N/A"}
+🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
+🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
 `;
 
-  await ctx.telegram.sendPhoto(RECRUITER_GROUP, answers.photo, {
-    caption: msg,
-    parse_mode: "HTML",
-  });
+  try {
+    await ctx.telegram.sendPhoto(RECRUITER_GROUP, answers.photo, {
+      caption: msg,
+      parse_mode: "HTML",
+    });
+    console.log(ctx.from);
 
-  ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
+    ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
+  } catch (error) {
+    console.error("Error sending to recruiter:", error);
+    ctx.reply("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+  }
   sessions.delete(ctx.from.id);
 }
 
