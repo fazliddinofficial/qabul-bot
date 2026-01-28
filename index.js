@@ -8,158 +8,225 @@ const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
-  "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan)",
-  "Qaysi yo'nalishda ishlay olasiz? (Fan o'qituvchi, admin)",
-  "I.F.Sh kiriting: (Ism Familiya Sharif)",
-  "Doimiy yashash manzilingizni kiriting: ",
-  "Ma'lumoti (Oliy, o'rta): ",
-  "Oldingi ish joyingiz va lavozimingiz haqida ma'lumot kiriting: (qachon, qayerda, kim bo'lib, qancha vaqt) \n Misol: 2020-yil, Toshkent, ingliz tili o'qituvchisi, 2 yil",
-  "Oilaviy axvolingizni yozing: (turmush qurgan, yoki turmush qurmagan)",
-  "Kompyuterda ishlay olasizmi? (excel, word)",
-  "Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
-  "Bizning korxonada qancha muddat ishlay olasiz?",
-  "Otangizni yoki onangizni telefon raqamini kiriting: ",
-  "Til bilish darajangiz: (IELTSda yoki CEFRda,)",
-  "Soat nechidan nechigacha ishlay olasiz?",
-  "Bizda qancha oylikga ishlamoqchisiz?",
-  "Telefon raqamingizni kiriting: ",
+  {
+    id: "photo",
+    text: "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, PNG yoki JPG formatida)",
+    type: "photo",
+    validate: (ctx) => {
+      if (ctx.message?.photo) return true;
+
+      if (ctx.message?.document) {
+        const mimeType = ctx.message.document.mime_type;
+        return (
+          mimeType === "image/png" ||
+          mimeType === "image/jpg" ||
+          mimeType === "image/jpeg"
+        );
+      }
+
+      return false;
+    },
+    errorMsg: "❌ Iltimos, faqat PNG yoki JPG formatidagi rasm yuboring!",
+    extract: (ctx) => {
+      if (ctx.message.photo) {
+        return ctx.message.photo[ctx.message.photo.length - 1].file_id;
+      }
+      return ctx.message.document.file_id;
+    },
+  },
+  {
+    id: "position",
+    text: "Qaysi yo'nalishda ishlay olasiz? (Fan o'qituvchi, admin)",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 2,
+    errorMsg: "❌ Iltimos, yo'nalishni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "fullName",
+    text: "I.F.Sh kiriting: (Ism Familiya Sharif)",
+    type: "text",
+    validate: (ctx) => {
+      const parts = ctx.message?.text?.trim().split(/\s+/) || [];
+      return parts.length >= 2;
+    },
+    errorMsg:
+      "❌ Iltimos, to'liq ismingizni kiriting (kamida Ism va Familiya)!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "address",
+    text: "Doimiy yashash manzilingizni kiriting:",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 3,
+    errorMsg: "❌ Iltimos, manzilingizni to'liq kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "education",
+    text: "Ma'lumoti (Oliy, o'rta):",
+    type: "text",
+    validate: (ctx) => {
+      const text = ctx.message?.text.trim().toLowerCase();
+      return ["oliy", "o'rta"].includes(text);
+    },
+    errorMsg: "❌ Iltimos, o'rta yoki oliy deb javob bering!",
+    extract: (ctx) => {
+      const text = ctx.message?.text.trim().toLowerCase();
+      return ["oliy", "o'rta"].includes(text) ? text : "mavjud emas";
+    },
+  },
+  {
+    id: "prevJob",
+    text: `Oldingi ish joyingiz va lavozimingiz haqida ma'lumot kiriting:
+(qachon, qayerda, kim bo'lib, qancha vaqt)
+
+📌 Misol: 2020-yil, Toshkent, ingliz tili o'qituvchisi, 2 yil`,
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 10,
+    errorMsg:
+      "❌ Iltimos, oldingi ish joyingiz haqida to'liqroq ma'lumot bering!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "maritalStatus",
+    text: "Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, oilaviy axvolingizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "computerSkills",
+    text: "Kompyuterda ishlay olasizmi? (exsel, word)",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, kompyuter ko'nikmalaringiz haqida yozing!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "lastSalary",
+    text: "Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "workDuration",
+    text: "Bizning korxonada qancha muddat ishlay olasiz?",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, ishlash muddatini kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "parentPhone",
+    text: "Otangizni yoki onangizni telefon raqamini kiriting:",
+    type: "text",
+    validate: (ctx) => {
+      const phone = ctx.message?.text?.replace(/\s/g, "") || "";
+      return /^\+?\d{9,13}$/.test(phone);
+    },
+    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "languageLevel",
+    text: "Til bilish darajangiz: (IELTSda yoki CEFRda)",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, til bilish darajangizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "workHours",
+    text: "Soat nechidan nechigacha ishlay olasiz?",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, ish vaqtingizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "expectedSalary",
+    text: "Bizdan qancha oylikga ishlamoqchisiz?",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, kutilayotgan maoshingizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "phone",
+    text: "Telefon raqamingizni kiriting:",
+    type: "text",
+    validate: (ctx) => {
+      const phone = ctx.message?.text?.replace(/\s/g, "") || "";
+      return /^\+?\d{9,13}$/.test(phone);
+    },
+    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
 ];
 
 bot.start((ctx) => {
-  sessions.set(ctx.from.id, { step: 0, answers: [] });
-  ctx.reply("Assalomu alaykum! Botimizga xush kelibsiz.\n\n" + questions[0]);
+  sessions.set(ctx.from.id, { step: 0, answers: {} });
+  ctx.reply(
+    "Assalomu alaykum! Botimizga xush kelibsiz.\n\n" + questions[0].text,
+  );
 });
 
-// Handle text messages (steps 1-14 are all text)
-bot.on("text", async (ctx) => {
+bot.on("message", async (ctx) => {
   const userId = ctx.from.id;
   const session = sessions.get(userId);
 
-  if (!session) return;
-
-  // Step 0 MUST be a photo
-  if (session.step === 0) {
-    return ctx.reply("❌ Iltimos, avval foto suratingizni yuboring!");
+  if (!session) {
+    return ctx.reply("Iltimos, /start buyrug'ini bosing.");
   }
 
-  // Save text answer
-  session.answers.push(ctx.message.text);
+  const currentQuestion = questions[session.step];
+
+  if (!currentQuestion.validate(ctx)) {
+    return ctx.reply(currentQuestion.errorMsg);
+  }
+
+  session.answers[currentQuestion.id] = currentQuestion.extract(ctx);
   session.step++;
 
-  // Check if more questions remain
   if (session.step < questions.length) {
-    return ctx.reply(questions[session.step]);
+    return ctx.reply(questions[session.step].text);
   }
 
-  // All questions answered - send to recruiter
   await sendToRecruiter(ctx, session);
 });
 
-// Handle photo messages (only step 0)
-bot.on("photo", async (ctx) => {
-  const userId = ctx.from.id;
-  const session = sessions.get(userId);
-
-  if (!session) return;
-
-  // Only accept photo at step 0
-  if (session.step !== 0) {
-    return ctx.reply("❌ Hozir matn javob kutilmoqda, rasm emas.");
-  }
-
-  // Save photo file_id
-  const photo = ctx.message.photo[ctx.message.photo.length - 1];
-  session.answers.push(photo.file_id);
-  session.step++;
-
-  // Ask next question
-  if (session.step < questions.length) {
-    return ctx.reply(questions[session.step]);
-  }
-});
-
-bot.on("document", async (ctx) => {
-  const userId = ctx.from.id;
-  const session = sessions.get(userId);
-
-  if (!session) return;
-
-  // Only accept at step 0
-  if (session.step !== 0) {
-    return ctx.reply("❌ Hozir matn javob kutilmoqda, rasm emas.");
-  }
-
-  const doc = ctx.message.document;
-
-  // Check if it's an image file
-  const imageTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/jpg",
-    "image/gif",
-    "image/webp",
-  ];
-
-  if (!imageTypes.includes(doc.mime_type)) {
-    return ctx.reply("❌ Iltimos, faqat rasm formatida yuboring (JPG, PNG).");
-  }
-
-  // Save document file_id (works same as photo)
-  session.answers.push(doc.file_id);
-  session.step++;
-
-  // Ask next question
-  if (session.step < questions.length) {
-    return ctx.reply(questions[session.step]);
-  }
-});
-
-// Function to send application to recruiter
 async function sendToRecruiter(ctx, session) {
-  const [
-    photoFileId, // 0 - Photo
-    position, // 1
-    fullName, // 2
-    address, // 3
-    education, // 4
-    prevJob, // 5
-    maritalStatus, // 6
-    computerSkills, // 7
-    lastSalary, // 8
-    workDuration, // 9
-    parentPhone, // 10
-    languageLevel, // 11
-    workHours, // 12
-    expectedSalary, // 13
-    phone, // 14
-  ] = session.answers;
+  const answers = session.answers;
 
   const msg = `
 📩 <b>Yangi ish so'rov</b>
 
-👤 <b>I.F.Sh:</b> ${fullName}
-📍 <b>Manzil:</b> ${address}
-📞 <b>Telefon:</b> ${phone}
-👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${parentPhone}
+👤 <b>I.F.Sh:</b> ${answers.fullName}
+📍 <b>Manzil:</b> ${answers.address}
+📞 <b>Telefon:</b> ${answers.phone}
+👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${answers.parentPhone}
 
-💼 <b>Yo'nalish:</b> ${position}
-🎓 <b>Ma'lumot:</b> ${education}
-🌐 <b>Til darajasi:</b> ${languageLevel}
-💻 <b>Kompyuter:</b> ${computerSkills}
+💼 <b>Yo'nalish:</b> ${answers.position}
+🎓 <b>Ma'lumot:</b> ${answers.education}
+🌐 <b>Til darajasi:</b> ${answers.languageLevel}
+💻 <b>Kompyuter:</b> ${answers.computerSkills}
 
-📋 <b>Oldingi ish:</b> ${prevJob}
-💰 <b>Oxirgi oylik:</b> ${lastSalary}
-💵 <b>Kutilayotgan oylik:</b> ${expectedSalary}
+📋 <b>Oldingi ish:</b> ${answers.prevJob}
+💰 <b>Oxirgi oylik:</b> ${answers.lastSalary}
+💵 <b>Kutilayotgan oylik:</b> ${answers.expectedSalary}
 
-💑 <b>Oilaviy holat:</b> ${maritalStatus}
-⏰ <b>Ish vaqti:</b> ${workHours}
-📅 <b>Ishlash davomiyligi:</b> ${workDuration}
+💑 <b>Oilaviy holat:</b> ${answers.maritalStatus}
+⏰ <b>Ish vaqti:</b> ${answers.workHours}
+📅 <b>Ishlash davomiyligi:</b> ${answers.workDuration}
 
 🆔 <b>Telegram:</b> @${ctx.from.username || "N/A"}
 `;
 
-  // Send photo with caption
-  await ctx.telegram.sendPhoto(RECRUITER_GROUP, photoFileId, {
+  await ctx.telegram.sendPhoto(RECRUITER_GROUP, answers.photo, {
     caption: msg,
     parse_mode: "HTML",
   });
