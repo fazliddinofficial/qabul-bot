@@ -13,7 +13,6 @@ const questions = [
     text: "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, faqat JPG formatida)",
     type: "photo",
     validate: (ctx) => {
-      // Accept photo messages (always JPG in Telegram)
       if (ctx.message?.photo) return true;
 
       // Accept JPG/JPEG documents
