@@ -10,23 +10,28 @@ const sessions = new Map();
 const questions = [
   {
     id: "photo",
-    text: "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, PNG yoki JPG formatida)",
+    text: "Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, faqat JPG formatida)",
     type: "photo",
     validate: (ctx) => {
+      // Accept photo messages (always JPG in Telegram)
       if (ctx.message?.photo) return true;
 
+      // Accept JPG/JPEG documents
       if (ctx.message?.document) {
         const mimeType = ctx.message.document.mime_type;
+        const fileName = ctx.message.document.file_name?.toLowerCase() || "";
+
         return (
-          mimeType === "image/png" ||
           mimeType === "image/jpg" ||
-          mimeType === "image/jpeg"
+          mimeType === "image/jpeg" ||
+          fileName.endsWith(".jpg") ||
+          fileName.endsWith(".jpeg")
         );
       }
 
       return false;
     },
-    errorMsg: "❌ Iltimos, faqat PNG yoki JPG formatidagi rasm yuboring!",
+    errorMsg: "❌ Iltimos, faqat JPG formatidagi rasm yuboring!",
     extract: (ctx) => {
       if (ctx.message.photo) {
         return ctx.message.photo[ctx.message.photo.length - 1].file_id;
@@ -68,12 +73,14 @@ const questions = [
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text.trim().toLowerCase();
-      return ["oliy", "o'rta"].includes(text);
+      return ["oliy", "o'rta", "orta", "oʻrta"].includes(text);
     },
     errorMsg: "❌ Iltimos, o'rta yoki oliy deb javob bering!",
     extract: (ctx) => {
       const text = ctx.message?.text.trim().toLowerCase();
-      return ["oliy", "o'rta"].includes(text) ? text : "mavjud emas";
+      return ["oliy", "o'rta", "orta", "Oʻrta", "oʻrta"].includes(text)
+        ? text
+        : "mavjud emas";
     },
   },
   {
