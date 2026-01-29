@@ -223,7 +223,6 @@ bot.on("message", async (ctx) => {
   session.step++;
 
   if (session.step < questions.length) {
-    // return ctx.reply(questions[session.step].text);
     const nextQuestion = questions[session.step];
 
     if (nextQuestion.type === "contact") {
