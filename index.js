@@ -1,5 +1,10 @@
 import { Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
+import {
+  POSITION_OPTIONS,
+  VALID_POSITIONS,
+  POSITION_KEYBOARD,
+} from "./constants.js";
 
 dotenv();
 
@@ -42,9 +47,15 @@ const questions = [
     id: "position",
     text: "Qaysi yo'nalishda ishlay olasiz? (Fan o'qituvchi, admin)",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 2,
+    validate: (ctx) => {
+      if (!ctx.message?.text) return false;
+      const text = ctx.message.text.trim();
+      return VALID_POSITIONS.includes(text);
+    },
     errorMsg: "❌ Iltimos, yo'nalishni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
+    extract: (ctx) => {
+      return ctx.message.text.replace(/\s+/g, " ").trim();
+    },
   },
   {
     id: "fullName",
@@ -86,8 +97,9 @@ const questions = [
     text: "Ma'lumoti (Oliy, o'rta):",
     type: "text",
     validate: (ctx) => {
-      const text = ctx.message?.text.trim().toLowerCase();
-      return ["oliy", "o'rta", "orta", "oʻrta"].includes(text);
+      const text = ctx.message?.text?.trim().toLowerCase();
+      const valid = ["oliy", "o'rta", "orta", "oʻrta"];
+      return valid.some((v) => text.includes(v));
     },
     errorMsg: "❌ Iltimos, o'rta yoki oliy deb javob bering!",
     extract: (ctx) => {
@@ -113,16 +125,24 @@ const questions = [
     id: "maritalStatus",
     text: "Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    validate: (ctx) => {
+      const text = ctx.message?.text?.trim().toLowerCase();
+      const valid = ["turmush qurgan", "turmush qurmagan"];
+      return valid.some((v) => text.includes(v));
+    },
     errorMsg: "❌ Iltimos, oilaviy axvolingizni kiriting!",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
     id: "computerSkills",
-    text: "Kompyuterda ishlay olasizmi? (exsel, word)",
+    text: "Kompyuterda ishlay olasizmi?",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, kompyuter ko'nikmalaringiz haqida yozing!",
+    validate: (ctx) => {
+      const text = ctx.message?.text?.trim().toLowerCase() || "";
+      const valid = ["ha", "yo'q", "yaxshi", "o'rtacha", "boshlang'ich"];
+      return valid.some((v) => text.includes(v));
+    },
+    errorMsg: "❌ Iltimos, pastdagi tugmalardan birini tanlang!",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
@@ -242,6 +262,54 @@ bot.on("message", async (ctx) => {
       });
     }
 
+    if (nextQuestion.id === "computerSkills") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: [
+            [{ text: "✅ Ha, yaxshi bilaman" }],
+            [{ text: "📊 O'rtacha" }],
+            [{ text: "🔰 Boshlang'ich" }],
+            [{ text: "❌ Yo'q, bilmayman" }],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+    }
+
+    if (nextQuestion.id === "position") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: POSITION_KEYBOARD,
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+    }
+
+    if (nextQuestion.id === "education") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: [[{ text: "Oliy" }], [{ text: "O'rta" }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+    }
+
+    if (nextQuestion.id === "maritalStatus") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: [
+            [{ text: "Turmush qurmagan" }],
+            [{ text: "Turmush qurgan" }],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+    }
+
     return ctx.reply(nextQuestion.text, {
       reply_markup: { remove_keyboard: true },
     });
@@ -277,6 +345,7 @@ async function sendToRecruiter(ctx, session) {
 
 🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
+🆔 <b>#${answers.position}</b>
 `;
 
   try {
