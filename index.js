@@ -4,8 +4,8 @@ import { config as dotenv } from "dotenv";
 dotenv();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const RECRUITER_GROUP = -1001943551822;
-// const RECRUITER_GROUP = "@recruting_group";
+// const RECRUITER_GROUP = -1001943551822;
+const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
@@ -179,13 +179,12 @@ const questions = [
   {
     id: "phone",
     text: "Telefon raqamingizni kiriting:",
-    type: "text",
+    type: "contact",
     validate: (ctx) => {
-      const phone = ctx.message?.text?.replace(/\s/g, "") || "";
-      return /^\+?\d{9,13}$/.test(phone);
+      return ctx.message?.contact?.phone_number !== undefined;
     },
     errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567",
-    extract: (ctx) => ctx.message.text.trim(),
+    extract: (ctx) => ctx.message.contact.phone_number,
   },
 ];
 
@@ -224,7 +223,29 @@ bot.on("message", async (ctx) => {
   session.step++;
 
   if (session.step < questions.length) {
-    return ctx.reply(questions[session.step].text);
+    // return ctx.reply(questions[session.step].text);
+    const nextQuestion = questions[session.step];
+
+    if (nextQuestion.type === "contact") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: [
+            [
+              {
+                text: "📞 Telefon raqamni ulashish",
+                request_contact: true,
+              },
+            ],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+    }
+
+    return ctx.reply(nextQuestion.text, {
+      reply_markup: { remove_keyboard: true },
+    });
   }
 
   await sendToRecruiter(ctx, session);
@@ -264,7 +285,6 @@ async function sendToRecruiter(ctx, session) {
       caption: msg,
       parse_mode: "HTML",
     });
-    console.log(ctx.from);
 
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
   } catch (error) {
