@@ -1,17 +1,11 @@
 import { Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
-import {
-  POSITION_OPTIONS,
-  VALID_POSITIONS,
-  POSITION_KEYBOARD,
-} from "./constants.js";
 import { VALID_POSITIONS, POSITION_KEYBOARD } from "./constants.js";
 
 dotenv();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const RECRUITER_GROUP = -1001943551822;
-//const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
