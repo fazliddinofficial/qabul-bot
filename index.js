@@ -1,4 +1,4 @@
-import { Telegraf } from "telegraf";
+import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import {
   POSITION_OPTIONS,
@@ -9,8 +9,8 @@ import {
 dotenv();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-// const RECRUITER_GROUP = -1001943551822;
-const RECRUITER_GROUP = "@recruting_group";
+const RECRUITER_GROUP = -1001943551822;
+// const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
@@ -70,26 +70,26 @@ const questions = [
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
-    id: "address",
-    text: "Doimiy yashash manzilingizni kiriting:",
-    type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 3,
-    errorMsg: "❌ Iltimos, manzilingizni to'liq kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
-  },
-  {
     id: "birthday",
-    text: "Tug'ilgan sanangizni kiriting (DD-MM-YYYY):",
+    text: "Tug'ilgan sanangizni kiriting (DD.MM.YYYY):",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim();
       if (!text) return false;
 
-      const regex = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-(19|20)\d{2}$/;
+      const regex = /^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.(19|20)\d{2}$/;
       return regex.test(text);
     },
     errorMsg:
-      "❌ Sana noto‘g‘ri formatda. Iltimos, DD-MM-YYYY ko‘rinishida kiriting.",
+      "❌ Sana noto‘g‘ri formatda. Iltimos, DD.MM.YYYY ko‘rinishida kiriting.",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "address",
+    text: "Doimiy yashash manzilingizni kiriting:",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 3,
+    errorMsg: "❌ Iltimos, manzilingizni to'liq kiriting!",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
@@ -127,7 +127,7 @@ const questions = [
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase();
-      const valid = ["turmush qurgan", "turmush qurmagan"];
+      const valid = ["turmush qurgan", "turmush qurmagan", "ajrashgan"];
       return valid.some((v) => text.includes(v));
     },
     errorMsg: "❌ Iltimos, oilaviy axvolingizni kiriting!",
@@ -169,7 +169,7 @@ const questions = [
       const phone = ctx.message?.text?.replace(/\s/g, "") || "";
       return /^\+?\d{9,13}$/.test(phone);
     },
-    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567",
+    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567 yoki 901234567",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
@@ -203,7 +203,7 @@ const questions = [
     validate: (ctx) => {
       return ctx.message?.contact?.phone_number !== undefined;
     },
-    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567",
+    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567 yoki 901234567",
     extract: (ctx) => ctx.message.contact.phone_number,
   },
 ];
@@ -244,6 +244,15 @@ bot.on("message", async (ctx) => {
 
   if (session.step < questions.length) {
     const nextQuestion = questions[session.step];
+
+    if (nextQuestion.id === "photo") {
+      await ctx.reply(
+        "Rasmingizni yuboring",
+        Markup.keyboard([Markup.button.requestPhoto("Rasmni yuboring")])
+          .resize()
+          .oneTime(),
+      );
+    }
 
     if (nextQuestion.type === "contact") {
       return ctx.reply(nextQuestion.text, {
@@ -303,6 +312,7 @@ bot.on("message", async (ctx) => {
           keyboard: [
             [{ text: "Turmush qurmagan" }],
             [{ text: "Turmush qurgan" }],
+            [{ text: "Ajrashgan" }],
           ],
           resize_keyboard: true,
           one_time_keyboard: true,
@@ -349,15 +359,19 @@ async function sendToRecruiter(ctx, session) {
 `;
 
   try {
-    await ctx.telegram.sendPhoto(RECRUITER_GROUP, answers.photo, {
+    await ctx.telegram.sendDocument(RECRUITER_GROUP, answers.photo, {
       caption: msg,
       parse_mode: "HTML",
     });
 
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
   } catch (error) {
-    console.error("Error sending to recruiter:", error);
-    ctx.reply("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+    await ctx.telegram.sendPhoto(RECRUITER_GROUP, answers.photo, {
+      caption: msg,
+      parse_mode: "HTML",
+    });
+    ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
+    console.log("catch worked");
   }
   sessions.delete(ctx.from.id);
 }

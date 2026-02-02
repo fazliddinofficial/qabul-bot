@@ -1,12 +1,21 @@
 export const POSITION_OPTIONS = {
-  teacher: "Fan o'qituvchi",
+  manager: "Manager",
   admin: "Admin",
-  english: "Ingliz tili o'qituvchi",
-  russian: "Rus tili o'qituvchi",
-  math: "Matematika o'qituvchi",
-  biology: "Biologiya o'qituvchi",
-  chemistry: "Kimyo o'qituvchi",
-  arabic: "Arab tili o'qituvchi",
+  english: "Ingliz tili o'qituvchisi",
+  russian: "Rus tili o'qituvchisi",
+  korean: "Koreys tili o'qituvchisi",
+  german: "Nemis tili o'qituvchisi",
+  japanese: "Yapon tili o'qituvchisi",
+  arabic: "Arab tili o'qituvchisi",
+  turkish: "Turk tili o'qituvchisi",
+  mathAndScience: "Matematika va fizika o'qituvchisi",
+  biologyAndChemistry: "Biologiya va kimyo o'qituvchisi",
+  computerOffice: "Kompyuter va ofis dasturlari o'qituvchisi",
+  webDevelopment: "Veb dasturlash o'qituvchisi",
+  graphicDesign: "Grafik dizayn o'qituvchisi",
+  accounting: "Buxgalteriya o'qituvchisi",
+  marketing: "SMM va mobilografiya o'qituvchisi",
+  trading: "Treyding o'qituvchisi",
 };
 
 export const VALID_POSITIONS = Object.values(POSITION_OPTIONS);
