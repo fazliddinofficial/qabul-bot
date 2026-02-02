@@ -1,22 +1,27 @@
-import { Markup, Telegraf } from "telegraf";
+import { Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
-import {
-  POSITION_OPTIONS,
-  VALID_POSITIONS,
-  POSITION_KEYBOARD,
-} from "./constants.js";
+import { VALID_POSITIONS, POSITION_KEYBOARD } from "./constants.js";
 
 dotenv();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const RECRUITER_GROUP = -1001943551822;
-// const RECRUITER_GROUP = "@recruting_group";
+// const RECRUITER_GROUP = -1001943551822;
+const RECRUITER_GROUP = "@recruting_group";
 const sessions = new Map();
 
 const questions = [
   {
     id: "photo",
-    text: "Iltimos savollarga birma-bir javob bering. \n Foto suratingizni yuboring. (oxirgi 3oy ichida tushurilgan, faqat JPG formatida)",
+    text: `📝 Iltimos, savollarga birma-bir javob bering.
+
+    📸 1) Foto suratingizni yuboring
+
+    ⚠️ Diqqat:
+    • Galereyadan rasm yubormang❗
+    • Rasmni bevosita kameradan olish majburiy❗
+    • Yuzingiz aniq va yorug‘ ko‘rinsin
+    • Rasm sifatli bo‘lishi kerak
+    `,
     type: "photo",
     validate: (ctx) => {
       if (ctx.message?.photo) return true;
@@ -45,7 +50,7 @@ const questions = [
   },
   {
     id: "position",
-    text: "Qaysi yo'nalishda ishlay olasiz? (Fan o'qituvchi, admin)",
+    text: "2) Qaysi yo'nalishda ishlay olasiz? (Fan o'qituvchi, admin)",
     type: "text",
     validate: (ctx) => {
       if (!ctx.message?.text) return false;
@@ -59,7 +64,7 @@ const questions = [
   },
   {
     id: "fullName",
-    text: "I.F.Sh kiriting: (Ism Familiya Sharif)",
+    text: "3) I.F.Sh kiriting: (Ism Familiya Sharif)",
     type: "text",
     validate: (ctx) => {
       const parts = ctx.message?.text?.trim().split(/\s+/) || [];
@@ -71,7 +76,7 @@ const questions = [
   },
   {
     id: "birthday",
-    text: "Tug'ilgan sanangizni kiriting (DD.MM.YYYY):",
+    text: "4) Tug'ilgan sanangizni kiriting (DD.MM.YYYY):",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim();
@@ -86,7 +91,7 @@ const questions = [
   },
   {
     id: "address",
-    text: "Doimiy yashash manzilingizni kiriting:",
+    text: "5) Doimiy yashash manzilingizni kiriting:",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 3,
     errorMsg: "❌ Iltimos, manzilingizni to'liq kiriting!",
@@ -94,24 +99,39 @@ const questions = [
   },
   {
     id: "education",
-    text: "Ma'lumoti (Oliy, o'rta):",
+    text: "6) Ma'lumoti (Oliy, o'rta, tugallanmagan oliy):",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase();
-      const valid = ["oliy", "o'rta", "orta", "oʻrta"];
+      const valid = ["oliy", "o'rta", "orta", "oʻrta", "tugallanmagan oliy"];
       return valid.some((v) => text.includes(v));
     },
     errorMsg: "❌ Iltimos, o'rta yoki oliy deb javob bering!",
     extract: (ctx) => {
       const text = ctx.message?.text.trim().toLowerCase();
-      return ["oliy", "o'rta", "orta", "Oʻrta", "oʻrta"].includes(text)
+      return [
+        "oliy",
+        "o'rta",
+        "orta",
+        "Oʻrta",
+        "oʻrta",
+        "tugallanmagan oliy",
+      ].includes(text)
         ? text
         : "mavjud emas";
     },
   },
   {
+    id: "university",
+    text: "7) O'qiyatgan yoki tugatgan oliygohingiz: ",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
     id: "prevJob",
-    text: `Oldingi ish joyingiz va lavozimingiz haqida ma'lumot kiriting:
+    text: `8) Oldingi ish joyingiz va lavozimingiz haqida ma'lumot kiriting:
 (qachon, qayerda, kim bo'lib, qancha vaqt)
 
 📌 Misol: 2020-yil, Toshkent, ingliz tili o'qituvchisi, 2 yil`,
@@ -123,7 +143,7 @@ const questions = [
   },
   {
     id: "maritalStatus",
-    text: "Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
+    text: "9) Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase();
@@ -135,7 +155,7 @@ const questions = [
   },
   {
     id: "computerSkills",
-    text: "Kompyuterda ishlay olasizmi?",
+    text: "10) Kompyuterda ishlay olasizmi?",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase() || "";
@@ -147,7 +167,7 @@ const questions = [
   },
   {
     id: "lastSalary",
-    text: "Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+    text: "11) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
@@ -155,7 +175,7 @@ const questions = [
   },
   {
     id: "workDuration",
-    text: "Bizning korxonada qancha muddat ishlay olasiz?",
+    text: "12) Bizning korxonada qancha muddat ishlay olasiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, ishlash muddatini kiriting!",
@@ -163,7 +183,7 @@ const questions = [
   },
   {
     id: "parentPhone",
-    text: "Otangizni yoki onangizni telefon raqamini kiriting:",
+    text: "13) Otangizni yoki onangizni telefon raqamini kiriting:",
     type: "text",
     validate: (ctx) => {
       const phone = ctx.message?.text?.replace(/\s/g, "") || "";
@@ -174,7 +194,7 @@ const questions = [
   },
   {
     id: "languageLevel",
-    text: "Til bilish darajangiz: (IELTSda yoki CEFRda)",
+    text: "14) Til bilish darajangiz: (IELTSda yoki CEFRda)",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, til bilish darajangizni kiriting!",
@@ -182,7 +202,7 @@ const questions = [
   },
   {
     id: "workHours",
-    text: "Soat nechidan nechigacha ishlay olasiz?",
+    text: "15) Soat nechidan nechigacha ishlay olasiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, ish vaqtingizni kiriting!",
@@ -190,7 +210,7 @@ const questions = [
   },
   {
     id: "expectedSalary",
-    text: "Bizdan qancha oylikga ishlamoqchisiz?",
+    text: "16) Bizdan qancha oylikga ishlamoqchisiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, kutilayotgan maoshingizni kiriting!",
@@ -198,7 +218,7 @@ const questions = [
   },
   {
     id: "phone",
-    text: "Telefon raqamingizni kiriting:",
+    text: "17) Telefon raqamingizni kiriting:",
     type: "contact",
     validate: (ctx) => {
       return ctx.message?.contact?.phone_number !== undefined;
@@ -245,15 +265,6 @@ bot.on("message", async (ctx) => {
   if (session.step < questions.length) {
     const nextQuestion = questions[session.step];
 
-    if (nextQuestion.id === "photo") {
-      await ctx.reply(
-        "Rasmingizni yuboring",
-        Markup.keyboard([Markup.button.requestPhoto("Rasmni yuboring")])
-          .resize()
-          .oneTime(),
-      );
-    }
-
     if (nextQuestion.type === "contact") {
       return ctx.reply(nextQuestion.text, {
         reply_markup: {
@@ -299,7 +310,11 @@ bot.on("message", async (ctx) => {
     if (nextQuestion.id === "education") {
       return ctx.reply(nextQuestion.text, {
         reply_markup: {
-          keyboard: [[{ text: "Oliy" }], [{ text: "O'rta" }]],
+          keyboard: [
+            [{ text: "Oliy" }],
+            [{ text: "O'rta" }],
+            [{ text: "Tugallanmagan oliy" }],
+          ],
           resize_keyboard: true,
           one_time_keyboard: true,
         },
@@ -342,6 +357,7 @@ async function sendToRecruiter(ctx, session) {
 
 💼 <b>Yo'nalish:</b> ${answers.position}
 🎓 <b>Ma'lumot:</b> ${answers.education}
+🎓 <b>Oliygoh nomi:</b> ${answers.university}
 🌐 <b>Til darajasi:</b> ${answers.languageLevel}
 💻 <b>Kompyuter:</b> ${answers.computerSkills}
 
