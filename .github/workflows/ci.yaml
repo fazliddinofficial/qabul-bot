@@ -24,3 +24,5 @@ jobs:
           cache: "npm"
       - run: npm i
       - run: node index.js
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
