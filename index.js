@@ -4,7 +4,7 @@ import { VALID_POSITIONS, POSITION_KEYBOARD } from "./constants.js";
 
 dotenv();
 
-const token = process.env.BOT_TOKEN || "";
+const token = process.env.BOT_TOKEN;
 
 const bot = new Telegraf(token);
 const RECRUITER_GROUP = -1001943551822;
