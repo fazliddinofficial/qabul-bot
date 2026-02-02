@@ -22,7 +22,7 @@ const questions = [
     📸 1) Foto suratingizni yuboring
 
     ⚠️ Diqqat:
-    • Galereyadan rasm yubormang❗
+    • Galereyadan eski rasm yubormang❗
     • Rasmni bevosita kameradan olish majburiy❗
     • Yuzingiz aniq va yorug‘ ko‘rinsin
     • Rasm sifatli bo‘lishi kerak
