@@ -222,10 +222,23 @@ const questions = [
     text: "17) Telefon raqamingizni kiriting:",
     type: "contact",
     validate: (ctx) => {
-      return ctx.message?.contact?.phone_number !== undefined;
+      return (
+        ctx.message?.contact?.phone_number !== undefined ||
+        ctx.message?.text !== undefined
+      );
     },
     errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567 yoki 901234567",
-    extract: (ctx) => ctx.message.contact.phone_number,
+    extract: (ctx) => {
+      if (ctx.message?.contact?.phone_number) {
+        return ctx.message.contact.phone_number;
+      }
+
+      if (ctx.message?.text) {
+        return ctx.message.text.trim();
+      }
+
+      return null;
+    },
   },
 ];
 
