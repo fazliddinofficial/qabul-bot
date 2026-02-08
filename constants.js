@@ -14,7 +14,7 @@ export const POSITION_OPTIONS = {
   webDevelopment: "Veb dasturlash o'qituvchisi",
   graphicDesign: "Grafik dizayn o'qituvchisi",
   accounting: "Buxgalteriya o'qituvchisi",
-  marketing: "SMM va mobilografiya o'qituvchisi",
+  marketing: "SMM va mobilografiya mutaxassis",
   trading: "Treyding o'qituvchisi",
 };
 
