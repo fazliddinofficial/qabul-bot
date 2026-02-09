@@ -91,8 +91,18 @@ const questions = [
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
+    id: "nation",
+    text: "5) Millatingizni kiring: ",
+    type: "text",
+    validate: (ctx) => {
+      return ctx.message?.text;
+    },
+    errorMsg: "❌ Iltimos, millatingizni kiring!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
     id: "address",
-    text: `5) Doimiy yashash manzilingiz
+    text: `6) Doimiy yashash manzilingiz
     (Viloyat, tuman, mahalla, ko‘cha, uy raqami)
 
     📌 Misol:
@@ -104,7 +114,7 @@ const questions = [
   },
   {
     id: "education",
-    text: "6) Ma'lumoti (Oliy, o'rta, tugallanmagan oliy):",
+    text: "7) Ma'lumoti (Oliy, o'rta, tugallanmagan oliy):",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase();
@@ -128,7 +138,7 @@ const questions = [
   },
   {
     id: "university",
-    text: `7) O‘qiyotgan yoki tugatgan oliygohingizni kiriting
+    text: `8) O‘qiyotgan yoki tugatgan oliygohingizni kiriting
     (Oliygoh nomi → yo‘nalish → kursi yoki tugatgan yili ketma-ketlikda yozing)
 
     📌 Misol:
@@ -141,7 +151,7 @@ const questions = [
   },
   {
     id: "prevJob",
-    text: `8) Oldingi ish tajribangiz
+    text: `9) Oldingi ish tajribangiz
     (Har bir ish joyini alohida qatorda quyidagi tartibda yozing: ish boshlagan va tugatgan yili, tashkilot nomi va joylashuvi, lavozimi, ish muddati)
 
     📌 Misol:
@@ -155,7 +165,7 @@ const questions = [
   },
   {
     id: "maritalStatus",
-    text: "9) Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
+    text: "10) Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase();
@@ -167,7 +177,7 @@ const questions = [
   },
   {
     id: "computerSkills",
-    text: "10) Kompyuterda ishlay olasizmi?",
+    text: "11) Kompyuterda ishlay olasizmi?",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase() || "";
@@ -179,7 +189,7 @@ const questions = [
   },
   {
     id: "lastSalary",
-    text: "11) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+    text: "12) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
@@ -187,7 +197,7 @@ const questions = [
   },
   {
     id: "workDuration",
-    text: "12) Bizning korxonada qancha muddat ishlay olasiz?",
+    text: "13) Bizning korxonada qancha muddat ishlay olasiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, ishlash muddatini kiriting!",
@@ -195,7 +205,7 @@ const questions = [
   },
   {
     id: "parentPhone",
-    text: "13) Otangizni yoki onangizni telefon raqamini kiriting:",
+    text: "14) Otangizni yoki onangizni telefon raqamini kiriting:",
     type: "text",
     validate: (ctx) => {
       const phone = ctx.message?.text?.replace(/\s/g, "") || "";
@@ -206,7 +216,7 @@ const questions = [
   },
   {
     id: "languageLevel",
-    text: "14) Til bilish darajangiz: (IELTSda yoki CEFRda)",
+    text: "15) Til bilish darajangiz: (IELTSda yoki CEFRda)",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, til bilish darajangizni kiriting!",
@@ -214,7 +224,7 @@ const questions = [
   },
   {
     id: "workHours",
-    text: `15) Soat nechidan nechigacha ishlay olasiz?
+    text: `16) Soat nechidan nechigacha ishlay olasiz?
 
     📌 Misol:
     09:00 dan 14:00 gacha
@@ -227,7 +237,7 @@ const questions = [
   },
   {
     id: "expectedSalary",
-    text: "16) Bizdan qancha oylikga ishlamoqchisiz?",
+    text: "17) Bizdan qancha oylikga ishlamoqchisiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, kutilayotgan maoshingizni kiriting!",
@@ -235,7 +245,7 @@ const questions = [
   },
   {
     id: "phone",
-    text: "17) Telefon raqamingizni kiriting:",
+    text: "18) Telefon raqamingizni kiriting:",
     type: "contact",
     validate: (ctx) => {
       return (
@@ -384,6 +394,7 @@ async function sendToRecruiter(ctx, session) {
 📍 <b>Manzil:</b> ${answers.address}
 📞 <b>Telefon:</b> ${answers.phone}
 👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${answers.parentPhone}
+🌍 <b>Millati:</b> ${answers.nation}
 
 💼 <b>Yo'nalish:</b> ${answers.position}
 🎓 <b>Ma'lumot:</b> ${answers.education}
