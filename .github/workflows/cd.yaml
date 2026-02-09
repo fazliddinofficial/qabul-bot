@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /projects/qabul-bot
+            cd /root/qabul-bot
             git pull origin master
-            npm ci
-            pm2 restart qabul-bot
+            npm install
+            pm2 restart telegram-bot
