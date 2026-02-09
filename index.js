@@ -92,7 +92,11 @@ const questions = [
   },
   {
     id: "address",
-    text: "5) Doimiy yashash manzilingizni kiriting:",
+    text: `5) Doimiy yashash manzilingiz
+    (Viloyat, tuman, mahalla, ko‘cha, uy raqami)
+
+    📌 Misol:
+    Toshkent viloyati, Chirchiq shahri, Navbahor mahallasi, Mustaqillik ko‘chasi, 25-uy`,
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 3,
     errorMsg: "❌ Iltimos, manzilingizni to'liq kiriting!",
@@ -124,7 +128,12 @@ const questions = [
   },
   {
     id: "university",
-    text: "7) O'qiyatgan yoki tugatgan oliygohingiz: ",
+    text: `7) O‘qiyotgan yoki tugatgan oliygohingizni kiriting
+    (Oliygoh nomi → yo‘nalish → kursi yoki tugatgan yili ketma-ketlikda yozing)
+
+    📌 Misol:
+     • Toshkent davlat iqtisodiyot universiteti → Iqtisodiyot → 3-kurs
+     • Samarqand davlat universiteti → Matematika → 2022-yilda tugatgan`,
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
@@ -132,10 +141,12 @@ const questions = [
   },
   {
     id: "prevJob",
-    text: `8) Oldingi ish joyingiz va lavozimingiz haqida ma'lumot kiriting:
-(qachon, qayerda, kim bo'lib, qancha vaqt)
+    text: `8) Oldingi ish tajribangiz
+    (Har bir ish joyini alohida qatorda quyidagi tartibda yozing: ish boshlagan va tugatgan yili, tashkilot nomi va joylashuvi, lavozimi, ish muddati)
 
-📌 Misol: 2020-yil, Toshkent, ingliz tili o'qituvchisi, 2 yil`,
+    📌 Misol:
+     1. 2020–2022 — “ABC Education” o‘quv markazi (Toshkent), ingliz tili o‘qituvchisi — 2 yil
+     2. 2022–2024 — “XYZ School” (Samarqand), administrator — 1,5 yil`,
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 10,
     errorMsg:
@@ -203,7 +214,12 @@ const questions = [
   },
   {
     id: "workHours",
-    text: "15) Soat nechidan nechigacha ishlay olasiz?",
+    text: `15) Soat nechidan nechigacha ishlay olasiz?
+
+    📌 Misol:
+    09:00 dan 14:00 gacha
+    yoki
+    14:00 dan 20:00 gacha`,
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, ish vaqtingizni kiriting!",
