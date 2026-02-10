@@ -423,10 +423,10 @@ async function sendToRecruiter(ctx, session) {
 💑 <b>Oilaviy holat:</b> ${answers.maritalStatus}
 ⏰ <b>Ish vaqti:</b> ${answers.workHours}
 📅 <b>Ishlash davomiyligi:</b> ${answers.workDuration}
+🌐 <b>Ishni topgan manbalar: #${answers.foundResource}</b>
 
 🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
-🌐 <b>Ishni topgan manbalar: #${answers.foundResource}</b>
    <b>#${answers.position}</b>
 `;
 
