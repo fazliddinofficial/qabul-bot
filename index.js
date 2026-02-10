@@ -408,8 +408,7 @@ async function sendToRecruiter(ctx, session) {
 📍 <b>Manzil:</b> ${answers.address}
 📞 <b>Telefon:</b> ${answers.phone}
 👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${answers.parentPhone}
-🌍 <b>Millati:</b> ${answers.foundResource}
-🌐 <b>#${answers.position}</b>
+🌍 <b>Millati:</b> ${answers.nation}
 
 💼 <b>Yo'nalish:</b> ${answers.position}
 🎓 <b>Ma'lumot:</b> ${answers.education}
@@ -428,6 +427,7 @@ async function sendToRecruiter(ctx, session) {
 🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
 🆔 <b>#${answers.position}</b>
+🌐 <b>Ishni topgan manbalar: #${answers.foundResource}</b>
 `;
 
   try {
