@@ -7,7 +7,7 @@ dotenv();
 const token = process.env.BOT_TOKEN;
 
 const bot = new Telegraf(token);
-const RECRUITER_GROUP = -1001943551822;
+const RECRUITER_GROUP = -1003769309292;
 const sessions = new Map();
 
 const questions = [
@@ -266,6 +266,20 @@ const questions = [
       return null;
     },
   },
+  {
+    id: "foundResource",
+    text: `
+    Ish e’lonini aynan qaysi kanal yoki sahifadan ko‘rdingiz?
+
+    📌 Misol:
+     • telegram:@nomi
+     • Instagram: @nomi
+    `,
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
 ];
 
 bot.start((ctx) => {
@@ -394,7 +408,8 @@ async function sendToRecruiter(ctx, session) {
 📍 <b>Manzil:</b> ${answers.address}
 📞 <b>Telefon:</b> ${answers.phone}
 👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${answers.parentPhone}
-🌍 <b>Millati:</b> ${answers.nation}
+🌍 <b>Millati:</b> ${answers.foundResource}
+🌐 <b>#${answers.position}</b>
 
 💼 <b>Yo'nalish:</b> ${answers.position}
 🎓 <b>Ma'lumot:</b> ${answers.education}
