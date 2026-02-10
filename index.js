@@ -427,7 +427,7 @@ async function sendToRecruiter(ctx, session) {
 
 🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
-   <b>#${answers.position}</b>
+👔 <b>#${answers.position}</b>
 `;
 
   try {
