@@ -4,7 +4,7 @@ config();
 
 const db_url = process.env.DB_URL;
 
-const creatingUserLimit = 2;
+const creatingUserLimit = 10;
 
 const userSchema = new mongoose.Schema({
   userId: {
@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
   },
   limit: {
     type: Number,
-    default: 3,
+    default: 11,
   },
 });
 
