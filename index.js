@@ -11,12 +11,6 @@ const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
 const bot = new Telegraf(token);
 
-async function startDB() {
-  await connectDB();
-}
-
-startDB();
-
 const sessions = new Map();
 
 bot.start(async (ctx) => {
@@ -195,8 +189,19 @@ async function sendToRecruiter(ctx, session) {
   sessions.delete(ctx.from.id);
 }
 
-bot.launch();
-console.log("Bot is up and running!");
+async function startBot() {
+  try {
+    await connectDB();
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+    await bot.launch();
+    console.log("🤖 Bot is running!");
+
+    process.once("SIGINT", () => bot.stop("SIGINT"));
+    process.once("SIGTERM", () => bot.stop("SIGTERM"));
+  } catch (error) {
+    console.error("Failed to start bot:", error);
+    process.exit(1);
+  }
+}
+
+startBot();
