@@ -23,12 +23,27 @@ export const User = mongoose.model("User", userSchema);
 
 export const connectDB = async () => {
   try {
-    await mongoose.connect(db_url);
+    await mongoose.connect(db_url, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
     console.log("Mongodb connected");
   } catch (e) {
     console.log("Mongo db connection error", e);
   }
 };
+
+mongoose.connection.on("connected", () => {
+  console.log("✅ Mongoose connected to MongoDB");
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error("❌ Mongoose connection error:", err);
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.log("⚠️ Mongoose disconnected");
+});
 
 export const checkUserExist = async (userId) => {
   const foundUser = await User.findOne({ userId });
