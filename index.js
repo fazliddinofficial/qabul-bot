@@ -2,7 +2,7 @@ import { Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { VALID_POSITIONS, POSITION_KEYBOARD } from "./constants.js";
 import { questions } from "./questions.js";
-import { checkUserExist, connectDB } from "./db.js";
+import { checkUserExist, checkUserPositions, connectDB } from "./db.js";
 
 dotenv();
 
@@ -20,16 +20,11 @@ startDB();
 const sessions = new Map();
 
 bot.start(async (ctx) => {
-  const user = await checkUserExist(ctx.from.id);
-  if (user.status) {
-    sessions.set(ctx.from.id, { step: 0, answers: {} });
-    ctx.reply(
-      `Assalomu alaykum! Botimizga xush kelibsiz. ${user.message}\n\n` +
-        questions[0].text,
-    );
-  } else {
-    ctx.reply(`Sizda urunishlar qolmagan!`);
-  }
+  await checkUserExist(ctx.from.id);
+  sessions.set(ctx.from.id, { step: 0, answers: {} });
+  ctx.reply(
+    `Assalomu alaykum! Botimizga xush kelibsiz. \n\n` + questions[0].text,
+  );
 });
 
 bot.on("message", async (ctx) => {
@@ -136,8 +131,17 @@ bot.on("message", async (ctx) => {
       reply_markup: { remove_keyboard: true },
     });
   }
-
-  await sendToRecruiter(ctx, session);
+  const canUserApply = await checkUserPositions(
+    userId,
+    session.answers.position,
+  );
+  if (canUserApply.status) {
+    await sendToRecruiter(ctx, session);
+  } else {
+    ctx.reply(
+      `Siz ${session.answers.position} yo'nalish bo'yicha resume yuborib bo'lgansiz, /start buyrug'ini bosing va boshqa o'zingizga mos yo'nalishni tanlang!`,
+    );
+  }
 });
 
 async function sendToRecruiter(ctx, session) {
