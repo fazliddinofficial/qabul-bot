@@ -2,7 +2,6 @@ import { Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { VALID_POSITIONS, POSITION_KEYBOARD } from "./constants.js";
 import { questions } from "./questions.js";
-import { checkUserExist, connectDB } from "./db.js";
 
 dotenv();
 
@@ -11,25 +10,13 @@ const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
 const bot = new Telegraf(token);
 
-async function startDB() {
-  await connectDB();
-}
-
-startDB();
-
 const sessions = new Map();
 
 bot.start(async (ctx) => {
-  const user = await checkUserExist(ctx.from.id);
-  if (user.status) {
-    sessions.set(ctx.from.id, { step: 0, answers: {} });
-    ctx.reply(
-      `Assalomu alaykum! Botimizga xush kelibsiz. ${user.message}\n\n` +
-        questions[0].text,
-    );
-  } else {
-    ctx.reply(`Sizda urunishlar qolmagan!`);
-  }
+  sessions.set(ctx.from.id, { step: 0, answers: {} });
+  ctx.reply(
+    `Assalomu alaykum! Botimizga xush kelibsiz.\n\n` + questions[0].text,
+  );
 });
 
 bot.on("message", async (ctx) => {
