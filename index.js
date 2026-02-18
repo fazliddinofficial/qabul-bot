@@ -123,7 +123,7 @@ bot.on("message", async (ctx) => {
       reply_markup: { remove_keyboard: true },
     });
   }
-    await sendToRecruiter(ctx, session);
+  await sendToRecruiter(ctx, session);
 });
 
 async function sendToRecruiter(ctx, session) {
@@ -177,17 +177,8 @@ async function sendToRecruiter(ctx, session) {
   sessions.delete(ctx.from.id);
 }
 
-async function startBot() {
-  try {
-    await bot.launch();
-    console.log("🤖 Bot is running!");
+bot.launch();
+console.log("🤖 Bot is running!");
 
-    process.once("SIGINT", () => bot.stop("SIGINT"));
-    process.once("SIGTERM", () => bot.stop("SIGTERM"));
-  } catch (error) {
-    console.error("Failed to start bot:", error);
-    process.exit(1);
-  }
-}
-
-startBot();
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
