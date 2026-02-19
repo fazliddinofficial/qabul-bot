@@ -14,14 +14,11 @@ const sessions = new Map();
 
 bot.start(async (ctx) => {
   sessions.set(ctx.from.id, { step: 0, answers: {} });
-  // ctx.reply(
-  //   `Assalomu alaykum! Botimizga xush kelibsiz. \n\n` + questions[0].text,
-  // );
   ctx.reply(
     `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
     Markup.inlineKeyboard([
-      Markup.button.callback("Birinchi marta", "firstTime"),
-      Markup.button.callback("Birinchisi emas", "secondTime"),
+      Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
+      Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
     ]),
   );
 });
@@ -37,6 +34,7 @@ bot.action("firstTime", async (ctx) => {
 
 bot.action("secondTime", async (ctx) => {
   await ctx.answerCbQuery();
+  sessions.delete(ctx.from.id);
   ctx.reply(
     "Agar oldin ishga topshirgan bo'lsangiz tez orada siz bilan bog'lanamiz✅",
   );
