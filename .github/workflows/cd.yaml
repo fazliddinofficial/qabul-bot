@@ -18,4 +18,4 @@ jobs:
             cd /root/qabul-bot
             git pull origin master
             npm install
-            pm2 restart telegram-bot
+            pm2 restart qabul-bot
