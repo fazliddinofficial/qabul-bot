@@ -1,6 +1,6 @@
-import { Telegraf } from "telegraf";
+import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
-import { VALID_POSITIONS, POSITION_KEYBOARD } from "./constants.js";
+import { POSITION_KEYBOARD } from "./constants.js";
 import { questions } from "./questions.js";
 
 dotenv();
@@ -14,8 +14,31 @@ const sessions = new Map();
 
 bot.start(async (ctx) => {
   sessions.set(ctx.from.id, { step: 0, answers: {} });
+  // ctx.reply(
+  //   `Assalomu alaykum! Botimizga xush kelibsiz. \n\n` + questions[0].text,
+  // );
   ctx.reply(
-    `Assalomu alaykum! Botimizga xush kelibsiz. \n\n` + questions[0].text,
+    `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
+    Markup.inlineKeyboard([
+      Markup.button.callback("Birinchi marta", "firstTime"),
+      Markup.button.callback("Birinchisi emas", "secondTime"),
+    ]),
+  );
+});
+
+bot.action("firstTime", async (ctx) => {
+  await ctx.answerCbQuery();
+  const session = sessions.get(ctx.from.id);
+  if (!session) return;
+
+  const firstQuestion = questions[0];
+  ctx.reply(firstQuestion.text);
+});
+
+bot.action("secondTime", async (ctx) => {
+  await ctx.answerCbQuery();
+  ctx.reply(
+    "Agar oldin ishga topshirgan bo'lsangiz tez orada siz bilan bog'lanamiz✅",
   );
 });
 
