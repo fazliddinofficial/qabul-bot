@@ -2,6 +2,7 @@ import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { POSITION_KEYBOARD } from "./constants.js";
 import { questions } from "./questions.js";
+import { loadUsers, writeData, stringtype } from "./handleJson.js";
 
 dotenv();
 
@@ -9,6 +10,34 @@ const token = process.env.BOT_TOKEN;
 const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
 const bot = new Telegraf(token);
+
+const users = loadUsers();
+
+function checkUserExist(userId, role) {
+  if (role == null || role == undefined) return { status: false };
+  userId = userId.toString();
+  for (const key in users) {
+    if (key === userId) {
+      const canUserApply = users[key].includes(role);
+      if (canUserApply) {
+        return {
+          status: false,
+          message: "Siz bu yo'nalish bo'yicha allaqachon ariza topshirgansiz.",
+        };
+      } else {
+        users[key].push(role);
+        const jsonValue = JSON.stringify(users);
+        writeData(jsonValue);
+        return {
+          status: true,
+          message: `Siz ${role} uchun ariza topshirdingiz.`,
+        };
+      }
+    }
+  }
+}
+const result = checkUserExist(1328121428, "ot");
+console.log(result);
 
 const sessions = new Map();
 
