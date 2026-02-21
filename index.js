@@ -173,11 +173,11 @@ bot.on("message", async (ctx) => {
   }
   const result = checkUserExist(userId, session.answers.position.toString());
 
-  if (result.message) {
+  if (result.status) {
     await sendToRecruiter(ctx, session);
-    return;
   }else{
-    ctx.reply('Siz ishga bu yo`nalish bo`yicha allaqachon topshirib bo`lgansiz.')
+    ctx.reply('Siz ishga bu yo`nalish bo`yicha allaqachon topshirib bo`lgansiz.');
+    sessions.delete(ctx.from.id);
   }
 });
 
