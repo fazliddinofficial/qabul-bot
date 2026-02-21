@@ -36,8 +36,6 @@ function checkUserExist(userId, role) {
     }
   }
 }
-const result = checkUserExist(1328121428, "ot");
-console.log(result);
 
 const sessions = new Map();
 
@@ -173,7 +171,14 @@ bot.on("message", async (ctx) => {
       reply_markup: { remove_keyboard: true },
     });
   }
-  await sendToRecruiter(ctx, session);
+  const result = checkUserExist(userId, session.answers.position.toString());
+
+  if (result.message) {
+    await sendToRecruiter(ctx, session);
+    return;
+  }else{
+    ctx.reply('Siz ishga bu yo`nalish bo`yicha allaqachon topshirib bo`lgansiz.')
+  }
 });
 
 async function sendToRecruiter(ctx, session) {
