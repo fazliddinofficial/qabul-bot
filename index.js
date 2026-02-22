@@ -15,7 +15,7 @@ const bot = new Telegraf(token);
 
 const sessions = new Map();
 
-const expression4h = CronosExpression.parse("0 0 */4 * * *");
+const expression4h = CronosExpression.parse("0 0 */10 * * *");
 
 const task = new CronosTask(expression4h);
 
