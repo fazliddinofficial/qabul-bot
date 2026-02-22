@@ -2,7 +2,8 @@ import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { POSITION_KEYBOARD } from "./constants.js";
 import { questions } from "./questions.js";
-import { addJobToUser, createUser, getAllUsers, getUserById } from "./db.js";
+import { addJobToUser, createUser, getUserById } from "./db.js";
+import { CronosExpression, CronosTask } from "cronosjs"
 
 dotenv();
 
@@ -11,7 +12,38 @@ const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
 const bot = new Telegraf(token);
 
+
 const sessions = new Map();
+
+const expression4h = CronosExpression.parse("0 0 */4 * * *");
+
+const task = new CronosTask(expression4h);
+
+task.on('run', async () => {
+  console.log('🔍 Checking inactive users at:', new Date().toLocaleString());
+  await checkInactiveUsers();
+});
+
+task.start();
+
+async function checkInactiveUsers() {
+  for (const [userId, session] of sessions.entries()) {
+    const progress = Math.round((session.step / questions.length) * 100);
+    if (session.step >= questions.length) {
+      console.log(`⏭️ User ${userId}: Form already completed`);
+      continue
+    }
+    await bot.telegram.sendMessage(
+      userId,
+      `⏰ <b>Eslatma!</b>\n\n` +
+      `Arizangiz tugallanmagan.\n` +
+      `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
+      `Davom etish uchun javob yuboring!`,
+      { parse_mode: 'HTML' }
+    );
+  }
+}
+
 
 bot.start(async (ctx) => {
   sessions.set(ctx.from.id, { step: 0, answers: {} });
@@ -146,9 +178,9 @@ bot.on("message", async (ctx) => {
     });
   }
 
-    const jobs = Array.isArray(session.answers.position)
-  ? session.answers.position
-  : [session.answers.position];
+  const jobs = Array.isArray(session.answers.position)
+    ? session.answers.position
+    : [session.answers.position];
 
   const foundUser = getUserById(userId);
 
@@ -158,13 +190,13 @@ bot.on("message", async (ctx) => {
       jobsTitle: jobs
     });
     sessions.delete(ctx.from.id);
-  }else{
+  } else {
     const user = foundUser.jobsTitle.includes(session.answers.position);
     if (user) {
       ctx.reply(`Siz bu yo'nalishda allaqachon ishga topshirib bo'lgansiz`);
       sessions.delete(ctx.from.id);
       return;
-    }else{
+    } else {
       addJobToUser(userId, session.answers.position);
       await sendToRecruiter(ctx, session);
       sessions.delete(ctx.from.id);
@@ -174,7 +206,7 @@ bot.on("message", async (ctx) => {
 
   console.log(foundUser);
   await sendToRecruiter(ctx, session);
-  sessions.delete(ctx.from.id);  
+  sessions.delete(ctx.from.id);
 });
 
 async function sendToRecruiter(ctx, session) {
