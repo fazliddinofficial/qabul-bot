@@ -20,6 +20,7 @@
   "description": "",
   "dependencies": {
     "better-sqlite3": "^12.6.2",
+    "cronosjs": "^1.7.1",
     "dotenv": "^17.2.3",
     "nodemon": "^3.1.10",
     "telegraf": "^4.16.3"
