@@ -2,6 +2,7 @@ import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { POSITION_KEYBOARD } from "./constants.js";
 import { questions } from "./questions.js";
+import { addJobToUser, createUser, getAllUsers, getUserById } from "./db.js";
 
 dotenv();
 
@@ -144,7 +145,36 @@ bot.on("message", async (ctx) => {
       reply_markup: { remove_keyboard: true },
     });
   }
+
+    const jobs = Array.isArray(session.answers.position)
+  ? session.answers.position
+  : [session.answers.position];
+
+  const foundUser = getUserById(userId);
+
+  if (!foundUser) {
+    createUser({
+      userId,
+      jobsTitle: jobs
+    });
+    sessions.delete(ctx.from.id);
+  }else{
+    const user = foundUser.jobsTitle.includes(session.answers.position);
+    if (user) {
+      ctx.reply(`Siz bu yo'nalishda allaqachon ishga topshirib bo'lgansiz`);
+      sessions.delete(ctx.from.id);
+      return;
+    }else{
+      addJobToUser(userId, session.answers.position);
+      await sendToRecruiter(ctx, session);
+      sessions.delete(ctx.from.id);
+      return;
+    }
+  }
+
+  console.log(foundUser);
   await sendToRecruiter(ctx, session);
+  sessions.delete(ctx.from.id);  
 });
 
 async function sendToRecruiter(ctx, session) {

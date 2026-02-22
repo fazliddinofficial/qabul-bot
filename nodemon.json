@@ -3,6 +3,9 @@
     "users.json",
     "logs/*",
     "uploads/*",
-    "*.log"
+    "*.log",
+    "database.db",
+    "data/database.db",
+    "*.db"
   ]
 }
