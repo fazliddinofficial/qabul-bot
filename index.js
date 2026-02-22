@@ -171,14 +171,8 @@ bot.on("message", async (ctx) => {
       reply_markup: { remove_keyboard: true },
     });
   }
-  const result = checkUserExist(userId, session.answers.position.toString());
 
-  if (result.status) {
-    await sendToRecruiter(ctx, session);
-  }else{
-    ctx.reply('Siz ishga bu yo`nalish bo`yicha allaqachon topshirib bo`lgansiz.');
-    sessions.delete(ctx.from.id);
-  }
+  await sendToRecruiter(ctx, session);
 });
 
 async function sendToRecruiter(ctx, session) {
