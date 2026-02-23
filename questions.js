@@ -275,7 +275,7 @@ export const questions = [
 export const incompleteEducationQuestions = [
   {
     id: "currentInstitution",
-    text: "Qaysi oliygohda o'qiyapsiz?",
+    text: "Qaysi oliygohda va qaysi yo'nalishda o'qiyapsiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text?.trim().length > 3,
     errorMsg: "❌ Iltimos, oliygo'h nomini kiriting!",
@@ -309,7 +309,7 @@ export const completedEducationQuestions = [
   },
   {
     id: "institution",
-    text: "Qayerni tamomlagansiz?",
+    text: "Qayerni va qaysi yo'nalishni tamomlagansiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text?.trim().length > 3,
     errorMsg: "❌ Iltimos, o'quv muassasasi nomini kiriting!",
