@@ -274,7 +274,7 @@ export const questions = [
 
 export const incompleteEducationQuestions = [
   {
-    id: "currentInstitution",
+    id: "institution",
     text: "Qaysi oliygohda va qaysi yo'nalishda o'qiyapsiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text?.trim().length > 3,
@@ -282,7 +282,7 @@ export const incompleteEducationQuestions = [
     extract: (ctx) => ctx.message.text.trim()
   },
   {
-    id: "expectedGraduationYear",
+    id: "graduationYear",
     text: "Nechanchi yil tugatasiz?",
     type: "text",
     validate: (ctx) => {
