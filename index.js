@@ -204,7 +204,6 @@ bot.on("message", async (ctx) => {
     }
   }
 
-  console.log(foundUser);
   await sendToRecruiter(ctx, session);
   sessions.delete(ctx.from.id);
 });
