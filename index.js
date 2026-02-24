@@ -1,7 +1,7 @@
 import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { POSITION_KEYBOARD } from "./constants.js";
-import { questions } from "./questions.js";
+import { completedEducationQuestions, incompleteEducationQuestions, questions } from "./questions.js";
 import { addJobToUser, createUser, getUserById } from "./db.js";
 import { CronosExpression, CronosTask } from "cronosjs"
 
@@ -46,7 +46,7 @@ async function checkInactiveUsers() {
 
 
 bot.start(async (ctx) => {
-  sessions.set(ctx.from.id, { step: 0, answers: {} });
+  sessions.set(ctx.from.id, { step: 0, answers: {} , questions: [...questions]});
   ctx.reply(
     `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
     Markup.inlineKeyboard([
@@ -61,7 +61,7 @@ bot.action("firstTime", async (ctx) => {
   const session = sessions.get(ctx.from.id);
   if (!session) return;
 
-  const firstQuestion = questions[0];
+  let firstQuestion = questions[0];
   ctx.reply(firstQuestion.text);
 });
 
@@ -71,6 +71,47 @@ bot.action("secondTime", async (ctx) => {
   ctx.reply(
     "Agar oldin ishga topshirgan bo'lsangiz tez orada siz bilan bog'lanamiz✅",
   );
+});
+
+bot.action("oliy", async (ctx) => {
+  await ctx.answerCbQuery();
+  const session = sessions.get(ctx.from.id);
+  if (!session) return;
+
+  session.answers["education"] = "Oliy";
+  session.questions = [...questions.slice(0, 6), ...completedEducationQuestions, ...questions.slice(7)];
+  session.step = 6; 
+
+  ctx.reply(completedEducationQuestions[0].text, {
+    reply_markup: { remove_keyboard: true }
+  });
+});
+bot.action("orta", async (ctx) => {
+  await ctx.answerCbQuery();
+  const session = sessions.get(ctx.from.id);
+  if (!session) return;
+
+  session.answers["education"] = "Oliy";
+  session.questions = [...questions.slice(0, 6), ...completedEducationQuestions, ...questions.slice(7)];
+  session.step = 6; 
+
+  ctx.reply(completedEducationQuestions[0].text, {
+    reply_markup: { remove_keyboard: true }
+  });
+});
+bot.action("incomplete", async (ctx) => {
+  await ctx.answerCbQuery();
+  const session = sessions.get(ctx.from.id);
+  if (!session) return;
+
+  session.answers["education"] = "Tugallanmagan oliy";
+
+  session.questions = [...questions.slice(0, 6), ...incompleteEducationQuestions, ...questions.slice(7)];
+  session.step = 6; 
+
+  ctx.reply(incompleteEducationQuestions[0].text, {
+    reply_markup: { remove_keyboard: true }
+  });
 });
 
 bot.on("message", async (ctx) => {
@@ -91,7 +132,7 @@ bot.on("message", async (ctx) => {
     return ctx.reply("Iltimos, /start buyrug'ini bosing.");
   }
 
-  const currentQuestion = questions[session.step];
+  const currentQuestion = session.questions[session.step];
 
   if (!currentQuestion.validate(ctx)) {
     return ctx.reply(currentQuestion.errorMsg);
@@ -100,8 +141,8 @@ bot.on("message", async (ctx) => {
   session.answers[currentQuestion.id] = currentQuestion.extract(ctx);
   session.step++;
 
-  if (session.step < questions.length) {
-    const nextQuestion = questions[session.step];
+  if (session.step < session.questions.length) {
+    const nextQuestion = session.questions[session.step];
 
     if (nextQuestion.type === "contact") {
       return ctx.reply(nextQuestion.text, {
@@ -146,17 +187,13 @@ bot.on("message", async (ctx) => {
     }
 
     if (nextQuestion.id === "education") {
-      return ctx.reply(nextQuestion.text, {
-        reply_markup: {
-          keyboard: [
-            [{ text: "Oliy" }],
-            [{ text: "O'rta" }],
-            [{ text: "Tugallanmagan oliy" }],
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true,
-        },
-      });
+      return ctx.reply(nextQuestion.text,
+        Markup.inlineKeyboard([
+          Markup.button.callback('Oliy', 'oliy'),
+          Markup.button.callback(`O'rta`, 'orta'),
+          Markup.button.callback('Tugallanmagan oliy', 'incomplete'),
+        ])
+      );
     }
 
     if (nextQuestion.id === "maritalStatus") {
@@ -223,7 +260,8 @@ async function sendToRecruiter(ctx, session) {
 
 💼 <b>Yo'nalish:</b> ${answers.position}
 🎓 <b>Ma'lumot:</b> ${answers.education}
-🎓 <b>Oliygoh nomi:</b> ${answers.university}
+🎓 <b>Oliygoh nomi va yo'nalishi:</b> ${answers.institution}
+🎓 <b>Tugatish yoki tugallagan yil:</b> ${answers.graduationYear}
 🌐 <b>Til darajasi:</b> ${answers.languageLevel}
 💻 <b>Kompyuter:</b> ${answers.computerSkills}
 

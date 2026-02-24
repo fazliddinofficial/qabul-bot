@@ -270,14 +270,10 @@ export const incompleteEducationQuestions = [
   },
   {
     id: "graduationYear",
-    text: "Nechanchi yil tugatasiz?",
+    text: "Nechanchi kurs ekanligingizni va bitiruv yilingizni kiriting!",
     type: "text",
-    validate: (ctx) => {
-      const year = parseInt(ctx.message?.text);
-      const currentYear = new Date().getFullYear();
-      return !isNaN(year) && year >= currentYear && year <= currentYear + 10;
-    },
-    errorMsg: "❌ Noto'g'ri yil! Misol: 2026",
+    validate: (ctx) => ctx.message?.text?.trim().length > 3,
+    errorMsg: "❌ Noto'g'ri yil! Misol: 2-kurs, 2028-bitiraman",
     extract: (ctx) => ctx.message.text.trim()
   }
 ];
@@ -287,16 +283,13 @@ export const completedEducationQuestions = [
     id: "graduationYear",
     text: "Tamomlagan yilingiz:",
     type: "text",
-    validate: (ctx) => {
-      const year = parseInt(ctx.message?.text);
-      return !isNaN(year) && year >= 1950 && year <= new Date().getFullYear();
-    },
+    validate: (ctx) => ctx.message?.text?.trim().length > 0,
     errorMsg: "❌ Noto'g'ri yil! Misol: 2020",
     extract: (ctx) => ctx.message.text.trim()
   },
   {
     id: "institution",
-    text: "Qayerni va qaysi yo'nalishni tamomlagansiz?",
+    text: "Qaysi ta’lim muassasasini va qaysi yo‘nalishni tamomlagansiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text?.trim().length > 3,
     errorMsg: "❌ Iltimos, o'quv muassasasi nomini kiriting!",
