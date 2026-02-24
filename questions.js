@@ -127,21 +127,8 @@ export const questions = [
     },
   },
   {
-    id: "university",
-    text: `8) O‘qiyotgan yoki tugatgan oliygohingizni kiriting
-    (Oliygoh nomi → yo‘nalish → kursi yoki tugatgan yili ketma-ketlikda yozing)
-
-    📌 Misol:
-     • Toshkent davlat iqtisodiyot universiteti → Iqtisodiyot → 3-kurs
-     • Samarqand davlat universiteti → Matematika → 2022-yilda tugatgan`,
-    type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
-  },
-  {
     id: "prevJob",
-    text: `9) Oldingi ish tajribangiz
+    text: `8) Oldingi ish tajribangiz
     (Har bir ish joyini alohida qatorda quyidagi tartibda yozing: ish boshlagan va tugatgan yili, tashkilot nomi va joylashuvi, lavozimi, ish muddati)
 
     📌 Misol:
@@ -155,7 +142,7 @@ export const questions = [
   },
   {
     id: "maritalStatus",
-    text: "10) Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
+    text: "9) Oilaviy axvolingizni yozing: (turmush qurgan, yoki yo'q)",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase();
@@ -167,7 +154,7 @@ export const questions = [
   },
   {
     id: "computerSkills",
-    text: "11) Kompyuterda ishlay olasizmi?",
+    text: "10) Kompyuterda ishlay olasizmi?",
     type: "text",
     validate: (ctx) => {
       const text = ctx.message?.text?.trim().toLowerCase() || "";
@@ -179,7 +166,7 @@ export const questions = [
   },
   {
     id: "lastSalary",
-    text: "12) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+    text: "11) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
@@ -187,7 +174,7 @@ export const questions = [
   },
   {
     id: "workDuration",
-    text: "13) Bizning korxonada qancha muddat ishlay olasiz?",
+    text: "12) Bizning korxonada qancha muddat ishlay olasiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, ishlash muddatini kiriting!",
@@ -195,7 +182,7 @@ export const questions = [
   },
   {
     id: "parentPhone",
-    text: "14) Otangizni yoki onangizni telefon raqamini kiriting:",
+    text: "13) Otangizni yoki onangizni telefon raqamini kiriting:",
     type: "text",
     validate: (ctx) => {
       const phone = ctx.message?.text?.replace(/\s/g, "") || "";
@@ -206,7 +193,7 @@ export const questions = [
   },
   {
     id: "languageLevel",
-    text: "15) Til bilish darajangiz: (IELTSda yoki CEFRda)",
+    text: "14) Til bilish darajangiz: (IELTSda yoki CEFRda)",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, til bilish darajangizni kiriting!",
@@ -214,7 +201,7 @@ export const questions = [
   },
   {
     id: "workHours",
-    text: `16) Soat nechidan nechigacha ishlay olasiz?
+    text: `15) Soat nechidan nechigacha ishlay olasiz?
 
     📌 Misol:
     09:00 dan 14:00 gacha
@@ -227,7 +214,7 @@ export const questions = [
   },
   {
     id: "expectedSalary",
-    text: "17) Bizdan qancha oylikga ishlamoqchisiz?",
+    text: "16) Bizdan qancha oylikga ishlamoqchisiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
     errorMsg: "❌ Iltimos, kutilayotgan maoshingizni kiriting!",
@@ -235,7 +222,7 @@ export const questions = [
   },
   {
     id: "phone",
-    text: "18) Telefon raqamingizni kiriting:",
+    text: "17) Telefon raqamingizni kiriting:",
     type: "contact",
     validate: (ctx) => {
       return (
@@ -270,4 +257,42 @@ export const questions = [
     errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
     extract: (ctx) => ctx.message.text.trim(),
   },
+];
+
+export const incompleteEducationQuestions = [
+  {
+    id: "institution",
+    text: "Qaysi oliygohda va qaysi yo'nalishda o'qiyapsiz?",
+    type: "text",
+    validate: (ctx) => ctx.message?.text?.trim().length > 3,
+    errorMsg: "❌ Iltimos, oliygo'h nomini kiriting!",
+    extract: (ctx) => ctx.message.text.trim()
+  },
+  {
+    id: "graduationYear",
+    text: "Nechanchi kurs ekanligingizni va bitiruv yilingizni kiriting!",
+    type: "text",
+    validate: (ctx) => ctx.message?.text?.trim().length > 3,
+    errorMsg: "❌ Noto'g'ri yil! Misol: 2-kurs, 2028-bitiraman",
+    extract: (ctx) => ctx.message.text.trim()
+  }
+];
+
+export const completedEducationQuestions = [
+  {
+    id: "graduationYear",
+    text: "Tamomlagan yilingiz:",
+    type: "text",
+    validate: (ctx) => ctx.message?.text?.trim().length > 0,
+    errorMsg: "❌ Noto'g'ri yil! Misol: 2020",
+    extract: (ctx) => ctx.message.text.trim()
+  },
+  {
+    id: "institution",
+    text: "Qaysi ta’lim muassasasini va qaysi yo‘nalishni tamomlagansiz?",
+    type: "text",
+    validate: (ctx) => ctx.message?.text?.trim().length > 3,
+    errorMsg: "❌ Iltimos, o'quv muassasasi nomini kiriting!",
+    extract: (ctx) => ctx.message.text.trim()
+  }
 ];
