@@ -280,19 +280,18 @@ export const incompleteEducationQuestions = [
 
 export const completedEducationQuestions = [
   {
-    id: "graduationYear",
-    text: "Tamomlagan yilingiz:",
-    type: "text",
-    validate: (ctx) => ctx.message?.text?.trim().length > 0,
-    errorMsg: "❌ Noto'g'ri yil! Misol: 2020",
-    extract: (ctx) => ctx.message.text.trim()
-  },
-  {
     id: "institution",
     text: "Qaysi ta’lim muassasasini va qaysi yo‘nalishni tamomlagansiz?",
     type: "text",
     validate: (ctx) => ctx.message?.text?.trim().length > 3,
     errorMsg: "❌ Iltimos, o'quv muassasasi nomini kiriting!",
+    extract: (ctx) => ctx.message.text.trim()
+  }, {
+    id: "graduationYear",
+    text: "Tamomlagan yilingiz:",
+    type: "text",
+    validate: (ctx) => ctx.message?.text?.trim().length > 0,
+    errorMsg: "❌ Noto'g'ri yil! Misol: 2020",
     extract: (ctx) => ctx.message.text.trim()
   }
 ];
