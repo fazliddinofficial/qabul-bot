@@ -1,9 +1,13 @@
 import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { POSITION_KEYBOARD } from "./constants.js";
-import { completedEducationQuestions, incompleteEducationQuestions, questions } from "./questions.js";
+import {
+  completedEducationQuestions,
+  incompleteEducationQuestions,
+  questions,
+} from "./questions.js";
 import { addJobToUser, createUser, getUserById } from "./db.js";
-import { CronosExpression, CronosTask } from "cronosjs"
+import { CronosExpression, CronosTask } from "cronosjs";
 
 dotenv();
 
@@ -12,15 +16,14 @@ const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
 const bot = new Telegraf(token);
 
-
 const sessions = new Map();
 
 const expression4h = CronosExpression.parse("0 0 */10 * * *");
 
 const task = new CronosTask(expression4h);
 
-task.on('run', async () => {
-  console.log('🔍 Checking inactive users at:', new Date().toLocaleString());
+task.on("run", async () => {
+  console.log("🔍 Checking inactive users at:", new Date().toLocaleString());
   await checkInactiveUsers();
 });
 
@@ -29,24 +32,45 @@ task.start();
 async function checkInactiveUsers() {
   for (const [userId, session] of sessions.entries()) {
     const progress = Math.round((session.step / questions.length) * 100);
+
     if (session.step >= questions.length) {
       console.log(`⏭️ User ${userId}: Form already completed`);
-      continue
+      sessions.delete(userId);
+      continue;
     }
-    await bot.telegram.sendMessage(
-      userId,
-      `⏰ <b>Eslatma!</b>\n\n` +
-      `Arizangiz tugallanmagan.\n` +
-      `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
-      `Davom etish uchun javob yuboring!`,
-      { parse_mode: 'HTML' }
-    );
+
+    try {
+      await bot.telegram.sendMessage(
+        userId,
+        `⏰ <b>Eslatma!</b>\n\n` +
+          `Arizangiz tugallanmagan.\n` +
+          `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
+          `Davom etish uchun javob yuboring!`,
+        { parse_mode: "HTML" },
+      );
+      console.log(`✅ Reminded user ${userId}`);
+    } catch (err) {
+      console.error(`❌ Failed to message ${userId}: ${err.message}`);
+
+      // If user blocked the bot or chat not found — remove them
+      if (
+        err.description?.includes("bot was blocked") ||
+        err.description?.includes("chat not found") ||
+        err.description?.includes("user is deactivated")
+      ) {
+        console.log(`🗑️ Removing unreachable user ${userId} from sessions`);
+        sessions.delete(userId);
+      }
+    }
   }
 }
 
-
 bot.start(async (ctx) => {
-  sessions.set(ctx.from.id, { step: 0, answers: {} , questions: [...questions]});
+  sessions.set(ctx.from.id, {
+    step: 0,
+    answers: {},
+    questions: [...questions],
+  });
   ctx.reply(
     `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
     Markup.inlineKeyboard([
@@ -79,11 +103,15 @@ bot.action("oliy", async (ctx) => {
   if (!session) return;
 
   session.answers["education"] = "Oliy";
-  session.questions = [...questions.slice(0, 6), ...completedEducationQuestions, ...questions.slice(7)];
-  session.step = 6; 
+  session.questions = [
+    ...questions.slice(0, 6),
+    ...completedEducationQuestions,
+    ...questions.slice(7),
+  ];
+  session.step = 6;
 
   ctx.reply(completedEducationQuestions[0].text, {
-    reply_markup: { remove_keyboard: true }
+    reply_markup: { remove_keyboard: true },
   });
 });
 bot.action("orta", async (ctx) => {
@@ -92,11 +120,15 @@ bot.action("orta", async (ctx) => {
   if (!session) return;
 
   session.answers["education"] = "Oliy";
-  session.questions = [...questions.slice(0, 6), ...completedEducationQuestions, ...questions.slice(7)];
-  session.step = 6; 
+  session.questions = [
+    ...questions.slice(0, 6),
+    ...completedEducationQuestions,
+    ...questions.slice(7),
+  ];
+  session.step = 6;
 
   ctx.reply(completedEducationQuestions[0].text, {
-    reply_markup: { remove_keyboard: true }
+    reply_markup: { remove_keyboard: true },
   });
 });
 bot.action("incomplete", async (ctx) => {
@@ -106,11 +138,15 @@ bot.action("incomplete", async (ctx) => {
 
   session.answers["education"] = "Tugallanmagan oliy";
 
-  session.questions = [...questions.slice(0, 6), ...incompleteEducationQuestions, ...questions.slice(7)];
-  session.step = 6; 
+  session.questions = [
+    ...questions.slice(0, 6),
+    ...incompleteEducationQuestions,
+    ...questions.slice(7),
+  ];
+  session.step = 6;
 
   ctx.reply(incompleteEducationQuestions[0].text, {
-    reply_markup: { remove_keyboard: true }
+    reply_markup: { remove_keyboard: true },
   });
 });
 
@@ -187,12 +223,13 @@ bot.on("message", async (ctx) => {
     }
 
     if (nextQuestion.id === "education") {
-      return ctx.reply(nextQuestion.text,
+      return ctx.reply(
+        nextQuestion.text,
         Markup.inlineKeyboard([
-          Markup.button.callback('Oliy', 'oliy'),
-          Markup.button.callback(`O'rta`, 'orta'),
-          Markup.button.callback('Tugallanmagan oliy', 'incomplete'),
-        ])
+          Markup.button.callback("Oliy", "oliy"),
+          Markup.button.callback(`O'rta`, "orta"),
+          Markup.button.callback("Tugallanmagan oliy", "incomplete"),
+        ]),
       );
     }
 
@@ -224,7 +261,7 @@ bot.on("message", async (ctx) => {
   if (!foundUser) {
     createUser({
       userId,
-      jobsTitle: jobs
+      jobsTitle: jobs,
     });
     sessions.delete(ctx.from.id);
   } else {
