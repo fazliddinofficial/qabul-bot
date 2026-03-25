@@ -22,6 +22,10 @@ const expression4h = CronosExpression.parse("0 0 */10 * * *");
 
 const task = new CronosTask(expression4h);
 
+process.on("unhandledRejection", (err) => {
+  console.error("🔥 Unhandled rejection:", err.message);
+});
+
 task.on("run", async () => {
   console.log("🔍 Checking inactive users at:", new Date().toLocaleString());
   await checkInactiveUsers();
@@ -52,7 +56,6 @@ async function checkInactiveUsers() {
     } catch (err) {
       console.error(`❌ Failed to message ${userId}: ${err.message}`);
 
-      // If user blocked the bot or chat not found — remove them
       if (
         err.description?.includes("bot was blocked") ||
         err.description?.includes("chat not found") ||
@@ -324,12 +327,16 @@ async function sendToRecruiter(ctx, session) {
 
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
   } catch (error) {
-    await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, answers.photo, {
-      caption: msg,
-      parse_mode: "HTML",
-    });
+    console.error("sendDocument failed, trying sendPhoto:", error.message);
+    try {
+      await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, answers.photo, {
+        caption: msg,
+        parse_mode: "HTML",
+      });
+    } catch (err2) {
+      console.error("❌ sendPhoto also failed:", err2.message);
+    }
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
-    console.log("catch worked");
   }
   sessions.delete(ctx.from.id);
 }
