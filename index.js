@@ -69,7 +69,8 @@ async function checkInactiveUsers() {
 }
 
 bot.start(async (ctx) => {
-  sessions.set(ctx.from.id, {
+  try {
+    sessions.set(ctx.from.id, {
     step: 0,
     answers: {},
     questions: [...questions],
@@ -81,6 +82,10 @@ bot.start(async (ctx) => {
       Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
     ]),
   );
+  } catch (error) {
+    console.log(`❌ Start failed for ${userId}: ${err.message}`);
+    sessions.delete(userId);
+  }
 });
 
 bot.action("firstTime", async (ctx) => {
