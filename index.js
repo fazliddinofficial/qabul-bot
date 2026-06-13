@@ -86,6 +86,7 @@ bot.start(async (ctx) => {
       answers: {},
       questions: [...questions],
     });
+
     ctx.reply(
       `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
       Markup.inlineKeyboard([
@@ -93,20 +94,9 @@ bot.start(async (ctx) => {
         Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
       ]),
     );
-    step: 0,
-    answers: {},
-    questions: [...questions],
-  });
-  ctx.reply(
-    `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
-    Markup.inlineKeyboard([
-      Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
-      Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
-    ]),
-  );
   } catch (error) {
-    console.log(`❌ Start failed for ${userId}: ${err.message}`);
-    sessions.delete(userId);
+    console.log(`❌ Start failed for ${ctx.from.id}: ${error.message}`);
+    sessions.delete(ctx.from.id);
   }
 });
 
