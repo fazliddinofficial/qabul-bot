@@ -20,6 +20,10 @@ const sessions = new Map();
 
 const expression4h = CronosExpression.parse("0 0 */10 * * *");
 
+const newExpression1h = CronosExpression.parse("0 */10 * * * *");
+
+const task2 = new CronosTask(newExpression1h);
+
 const task = new CronosTask(expression4h);
 
 process.on("unhandledRejection", (err) => {
@@ -31,7 +35,14 @@ task.on("run", async () => {
   await checkInactiveUsers();
 });
 
+task2.on('run', async () => {
+  console.log("Checking bot is running or not.");
+  await bot.telegram.sendMessage('1328121428', `${new Date().getTime()}`);
+})
+
 task.start();
+
+task2.start();
 
 async function checkInactiveUsers() {
   for (const [userId, session] of sessions.entries()) {
@@ -47,9 +58,9 @@ async function checkInactiveUsers() {
       await bot.telegram.sendMessage(
         userId,
         `⏰ <b>Eslatma!</b>\n\n` +
-          `Arizangiz tugallanmagan.\n` +
-          `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
-          `Davom etish uchun javob yuboring!`,
+        `Arizangiz tugallanmagan.\n` +
+        `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
+        `Davom etish uchun javob yuboring!`,
         { parse_mode: "HTML" },
       );
       console.log(`✅ Reminded user ${userId}`);
@@ -71,6 +82,17 @@ async function checkInactiveUsers() {
 bot.start(async (ctx) => {
   try {
     sessions.set(ctx.from.id, {
+      step: 0,
+      answers: {},
+      questions: [...questions],
+    });
+    ctx.reply(
+      `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
+      Markup.inlineKeyboard([
+        Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
+        Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
+      ]),
+    );
     step: 0,
     answers: {},
     questions: [...questions],
