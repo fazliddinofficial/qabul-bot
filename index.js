@@ -37,7 +37,10 @@ task.on("run", async () => {
 
 task2.on('run', async () => {
   console.log("Checking bot is running or not.");
-  await bot.telegram.sendMessage('1328121428', `${new Date().getTime()}`);
+  await bot.telegram.sendMessage(
+    '1328121428',
+    new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })
+  )
 })
 
 task.start();
