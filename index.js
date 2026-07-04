@@ -311,6 +311,7 @@ async function sendToRecruiter(ctx, session) {
   const msg = `
 📩 <b>Yangi ish so'rov</b>
 
+👔 <b>#${answers.position}</b>
 👤 <b>I.F.Sh:</b> ${answers.fullName}
 🗓️ <b>Tug'ilgan sanasi:</b> ${answers.birthday}
 📍 <b>Manzil:</b> ${answers.address}
@@ -336,7 +337,6 @@ async function sendToRecruiter(ctx, session) {
 
 🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
-👔 <b>#${answers.position}</b>
 `;
 
   try {
