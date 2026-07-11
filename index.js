@@ -35,13 +35,13 @@ task.on("run", async () => {
   await checkInactiveUsers();
 });
 
-task2.on('run', async () => {
+task2.on("run", async () => {
   console.log("Checking bot is running or not.");
   await bot.telegram.sendMessage(
-    '1328121428',
-    new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' })
-  )
-})
+    "1328121428",
+    new Date().toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" }),
+  );
+});
 
 task.start();
 
@@ -61,9 +61,9 @@ async function checkInactiveUsers() {
       await bot.telegram.sendMessage(
         userId,
         `⏰ <b>Eslatma!</b>\n\n` +
-        `Arizangiz tugallanmagan.\n` +
-        `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
-        `Davom etish uchun javob yuboring!`,
+          `Arizangiz tugallanmagan.\n` +
+          `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
+          `Davom etish uchun javob yuboring!`,
         { parse_mode: "HTML" },
       );
       console.log(`✅ Reminded user ${userId}`);
@@ -339,25 +339,41 @@ async function sendToRecruiter(ctx, session) {
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
 `;
 
-  try {
-    await ctx.telegram.sendDocument(CHANNEL_OR_GROUP_TOKEN, answers.photo, {
-      caption: msg,
-      parse_mode: "HTML",
-    });
+  const opts = { caption: msg, parse_mode: "HTML" };
+  let sent = false;
 
-    ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
+  try {
+    await ctx.telegram.sendDocument(
+      CHANNEL_OR_GROUP_TOKEN,
+      answers.photo,
+      opts,
+    );
+    sent = true;
   } catch (error) {
-    console.error("sendDocument failed, trying sendPhoto:", error.message);
+    console.error(
+      "sendDocument failed:",
+      error.response?.description || error.message,
+    );
+
     try {
-      await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, answers.photo, {
-        caption: msg,
-        parse_mode: "HTML",
-      });
+      await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, answers.photo, opts);
+      sent = true;
     } catch (err2) {
-      console.error("❌ sendPhoto also failed:", err2.message);
+      console.error(
+        "sendPhoto also failed:",
+        err2.response?.description || err2.message,
+      );
     }
-    ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
   }
+
+  if (sent) {
+    ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
+  } else {
+    ctx.reply(
+      "⚠️ Faylni yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
+    );
+  }
+
   sessions.delete(ctx.from.id);
 }
 
