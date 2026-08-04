@@ -142,7 +142,7 @@ bot.action("orta", async (ctx) => {
   const session = sessions.get(ctx.from.id);
   if (!session) return;
 
-  session.answers["education"] = "Oliy";
+  session.answers["education"] = "o'rta";
   session.questions = [
     ...questions.slice(0, 6),
     ...completedEducationQuestions,
@@ -268,6 +268,31 @@ bot.on("message", async (ctx) => {
           one_time_keyboard: true,
         },
       });
+    }
+
+    const extractedValue = currentQuestion.extract(ctx);
+
+    if (currentQuestion.id === "phone") {
+      const normalize = (num) => {
+        let digits = (num || "").replace(/\D/g, "");
+        if (digits.length > 9) {
+          digits = digits.slice(-9);
+        }
+        return digits;
+      };
+
+      const newPhone = normalize(extractedValue);
+      const parentPhone = normalize(session.answers.parentPhone);
+
+      console.log(
+        `📞 Comparing phones — new: ${newPhone}, parent: ${parentPhone}`,
+      );
+
+      if (newPhone && parentPhone && newPhone === parentPhone) {
+        return ctx.reply(
+          "❌ Bu raqam ota-onangiz raqami bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
+        );
+      }
     }
 
     return ctx.reply(nextQuestion.text, {
