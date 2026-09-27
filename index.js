@@ -47,6 +47,33 @@ task.start();
 
 task2.start();
 
+function normalizePhone(num) {
+  let digits = (num || "").replace(/\D/g, "");
+  if (digits.length > 9) {
+    digits = digits.slice(-9);
+  }
+  return digits;
+}
+
+function phonesMatch(a, b) {
+  const left = normalizePhone(a);
+  const right = normalizePhone(b);
+  return Boolean(left && right && left === right);
+}
+
+const phoneKeyboard = {
+  keyboard: [
+    [
+      {
+        text: "📞 Telefon raqamni ulashish",
+        request_contact: true,
+      },
+    ],
+  ],
+  resize_keyboard: true,
+  one_time_keyboard: true,
+};
+
 async function checkInactiveUsers() {
   for (const [userId, session] of sessions.entries()) {
     const progress = Math.round((session.step / questions.length) * 100);
@@ -197,7 +224,19 @@ bot.on("message", async (ctx) => {
     return ctx.reply(currentQuestion.errorMsg);
   }
 
-  session.answers[currentQuestion.id] = currentQuestion.extract(ctx);
+  const extractedValue = currentQuestion.extract(ctx);
+
+  if (
+    currentQuestion.id === "phone" &&
+    phonesMatch(extractedValue, session.answers.parentPhone)
+  ) {
+    return ctx.reply(
+      "❌ Bu raqam ota-onangiz raqami bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
+      { reply_markup: phoneKeyboard },
+    );
+  }
+
+  session.answers[currentQuestion.id] = extractedValue;
   session.step++;
 
   if (session.step < session.questions.length) {
@@ -205,18 +244,7 @@ bot.on("message", async (ctx) => {
 
     if (nextQuestion.type === "contact") {
       return ctx.reply(nextQuestion.text, {
-        reply_markup: {
-          keyboard: [
-            [
-              {
-                text: "📞 Telefon raqamni ulashish",
-                request_contact: true,
-              },
-            ],
-          ],
-          resize_keyboard: true,
-          one_time_keyboard: true,
-        },
+        reply_markup: phoneKeyboard,
       });
     }
 
@@ -270,31 +298,6 @@ bot.on("message", async (ctx) => {
       });
     }
 
-    const extractedValue = currentQuestion.extract(ctx);
-
-    if (currentQuestion.id === "phone") {
-      const normalize = (num) => {
-        let digits = (num || "").replace(/\D/g, "");
-        if (digits.length > 9) {
-          digits = digits.slice(-9);
-        }
-        return digits;
-      };
-
-      const newPhone = normalize(extractedValue);
-      const parentPhone = normalize(session.answers.parentPhone);
-
-      console.log(
-        `📞 Comparing phones — new: ${newPhone}, parent: ${parentPhone}`,
-      );
-
-      if (newPhone && parentPhone && newPhone === parentPhone) {
-        return ctx.reply(
-          "❌ Bu raqam ota-onangiz raqami bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
-        );
-      }
-    }
-
     return ctx.reply(nextQuestion.text, {
       reply_markup: { remove_keyboard: true },
     });
@@ -340,8 +343,8 @@ async function sendToRecruiter(ctx, session) {
 👤 <b>I.F.Sh:</b> ${answers.fullName}
 🗓️ <b>Tug'ilgan sanasi:</b> ${answers.birthday}
 📍 <b>Manzil:</b> ${answers.address}
-📞 <b>Telefon:</b> ${answers.phone}
-👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${answers.parentPhone}
+📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}
+👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
 🌍 <b>Millati:</b> ${answers.nation}
 
 💼 <b>Yo'nalish:</b> ${answers.position}

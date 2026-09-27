@@ -222,7 +222,7 @@ export const questions = [
   },
   {
     id: "phone",
-    text: "17) Telefon raqamingizni kiriting:",
+    text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Ota-ona raqamidan farq qilishi shart:",
     type: "contact",
     validate: (ctx) => {
       return (
