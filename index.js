@@ -20,11 +20,16 @@ const sessions = new Map();
 
 const expression4h = CronosExpression.parse("0 0 */10 * * *");
 
-const newExpression1h = CronosExpression.parse("0 */10 * * * *");
+// Check once an hour; the message itself goes out only at 09:00 Tashkent.
+const dailyStatusExpression = CronosExpression.parse("0 0 * * * *");
 
-const task2 = new CronosTask(newExpression1h);
+const task2 = new CronosTask(dailyStatusExpression);
 
 const task = new CronosTask(expression4h);
+
+const botStartedAt = Date.now();
+const STATUS_CHAT_ID = "1328121428";
+let lastDailyStatusDate = "";
 
 process.on("unhandledRejection", (err) => {
   console.error("🔥 Unhandled rejection:", err.message);
@@ -36,11 +41,7 @@ task.on("run", async () => {
 });
 
 task2.on("run", async () => {
-  console.log("Checking bot is running or not.");
-  await bot.telegram.sendMessage(
-    "1328121428",
-    new Date().toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" }),
-  );
+  await sendDailyStatus();
 });
 
 task.start();
@@ -73,6 +74,64 @@ const phoneKeyboard = {
   resize_keyboard: true,
   one_time_keyboard: true,
 };
+
+function formatUptime(ms) {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days) parts.push(`${days} kun`);
+  if (hours) parts.push(`${hours} soat`);
+  parts.push(`${minutes} daqiqa`);
+  return parts.join(" ");
+}
+
+function tashkentNow(date = new Date()) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Tashkent",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    dateKey: `${parts.year}-${parts.month}-${parts.day}`,
+    hour: Number(parts.hour),
+    label: date.toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" }),
+  };
+}
+
+async function sendDailyStatus() {
+  const now = tashkentNow();
+  if (now.hour !== 9 || lastDailyStatusDate === now.dateKey) return;
+
+  console.log("Sending daily bot status.");
+  const openApplications = [...sessions.values()].filter((session) => {
+    const total = session.questions?.length || questions.length;
+    return session.step < total;
+  }).length;
+
+  try {
+    await bot.telegram.sendMessage(
+      STATUS_CHAT_ID,
+      `📊 <b>Kunlik bot holati</b>\n\n` +
+        `✅ Bot ishlayapti\n` +
+        `📅 ${now.label}\n` +
+        `⏱ Uzluksiz ishlagan: ${formatUptime(Date.now() - botStartedAt)}\n` +
+        `📝 Tugallanmagan arizalar: ${openApplications}`,
+      { parse_mode: "HTML" },
+    );
+    lastDailyStatusDate = now.dateKey;
+  } catch (err) {
+    console.error(`❌ Daily status failed: ${err.message}`);
+  }
+}
 
 async function checkInactiveUsers() {
   for (const [userId, session] of sessions.entries()) {
