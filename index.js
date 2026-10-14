@@ -6,7 +6,7 @@ import {
   incompleteEducationQuestions,
   questions,
 } from "./questions.js";
-import { addJobToUser, createUser, getUserById } from "./db.js";
+import { addJobToUser, connectDb, createUser, getUserById, saveApplication } from "./db.js";
 import { CronosExpression, CronosTask } from "cronosjs";
 
 dotenv();
@@ -366,10 +366,10 @@ bot.on("message", async (ctx) => {
     ? session.answers.position
     : [session.answers.position];
 
-  const foundUser = getUserById(userId);
+  const foundUser = await getUserById(userId);
 
   if (!foundUser) {
-    createUser({
+    await createUser({
       userId,
       jobsTitle: jobs,
     });
@@ -381,16 +381,30 @@ bot.on("message", async (ctx) => {
       sessions.delete(ctx.from.id);
       return;
     } else {
-      addJobToUser(userId, session.answers.position);
+      await addJobToUser(userId, session.answers.position);
+      await persistApplication(ctx, session);
       await sendToRecruiter(ctx, session);
       sessions.delete(ctx.from.id);
       return;
     }
   }
 
+  await persistApplication(ctx, session);
   await sendToRecruiter(ctx, session);
   sessions.delete(ctx.from.id);
 });
+
+async function persistApplication(ctx, session) {
+  try {
+    await saveApplication({
+      telegramUserId: ctx.from.id,
+      username: ctx.from.username || "",
+      answers: session.answers,
+    });
+  } catch (error) {
+    console.error("Ariza bazaga yozilmadi:", error.message);
+  }
+}
 
 async function sendToRecruiter(ctx, session) {
   const answers = session.answers;
@@ -462,6 +476,18 @@ async function sendToRecruiter(ctx, session) {
   }
 
   sessions.delete(ctx.from.id);
+}
+
+if (!process.env.DASHBOARD_TOKEN) {
+  console.error("DASHBOARD_TOKEN yo'q");
+  process.exit(1);
+}
+
+try {
+  await connectDb(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/qabul");
+} catch (error) {
+  console.error("MongoDB ulanmadi:", error.message);
+  process.exit(1);
 }
 
 bot.launch();
