@@ -8,6 +8,7 @@ export const POSITION_OPTIONS = {
   japanese: "Yapon tili o'qituvchisi",
   arabic: "Arab tili o'qituvchisi",
   turkish: "Turk tili o'qituvchisi",
+  motherTongueAndLiterature: "Ona tili va adabiyot o'qituvchisi",
   mathAndScience: "Matematika va fizika o'qituvchisi",
   biologyAndChemistry: "Biologiya va kimyo o'qituvchisi",
   computerOffice: "Kompyuter va ofis dasturlari o'qituvchisi",
