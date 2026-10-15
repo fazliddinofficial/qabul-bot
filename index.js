@@ -1,3 +1,4 @@
+import https from "https";
 import { Markup, Telegraf } from "telegraf";
 import { config as dotenv } from "dotenv";
 import { POSITION_KEYBOARD } from "./constants.js";
@@ -7,6 +8,7 @@ import {
   questions,
 } from "./questions.js";
 import { addJobToUser, connectDb, createUser, getUserById, saveApplication } from "./db.js";
+import { startWeb } from "./web/server.js";
 import { CronosExpression, CronosTask } from "cronosjs";
 
 dotenv();
@@ -14,9 +16,39 @@ dotenv();
 const token = process.env.BOT_TOKEN;
 const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
-const bot = new Telegraf(token);
+const bot = new Telegraf(token, {
+  telegram: {
+    agent: new https.Agent({ keepAlive: false }),
+  },
+});
+
+const originalCallApi = bot.telegram.callApi.bind(bot.telegram);
+bot.telegram.callApi = async (method, payload, options) => {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await originalCallApi(method, payload, options);
+    } catch (error) {
+      lastError = error;
+      const message = error?.message || "";
+      const transient = /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|FetchError|network/i.test(message);
+      if (!transient || attempt === 3 || error?.name === "AbortError") throw error;
+      console.error(`${method} qayta uriniladi (${attempt}/3):`, message);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+  }
+  throw lastError;
+};
 
 const sessions = new Map();
+
+async function ack(ctx) {
+  try {
+    await ctx.answerCbQuery();
+  } catch (error) {
+    console.error("Tugma javobi yuborilmadi:", error.message);
+  }
+}
 
 const expression4h = CronosExpression.parse("0 0 */10 * * *");
 
@@ -176,7 +208,7 @@ bot.start(async (ctx) => {
       questions: [...questions],
     });
 
-    ctx.reply(
+    await ctx.reply(
       `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
       Markup.inlineKeyboard([
         Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
@@ -190,26 +222,32 @@ bot.start(async (ctx) => {
 });
 
 bot.action("firstTime", async (ctx) => {
-  await ctx.answerCbQuery();
+  await ack(ctx);
   const session = sessions.get(ctx.from.id);
-  if (!session) return;
+  if (!session) {
+    await ctx.reply("Iltimos, /start buyrug'ini bosing.");
+    return;
+  }
 
   let firstQuestion = questions[0];
-  ctx.reply(firstQuestion.text);
+  await ctx.reply(firstQuestion.text);
 });
 
 bot.action("secondTime", async (ctx) => {
-  await ctx.answerCbQuery();
+  await ack(ctx);
   sessions.delete(ctx.from.id);
-  ctx.reply(
+  await ctx.reply(
     "Agar oldin ishga topshirgan bo'lsangiz tez orada siz bilan bog'lanamiz✅",
   );
 });
 
 bot.action("oliy", async (ctx) => {
-  await ctx.answerCbQuery();
+  await ack(ctx);
   const session = sessions.get(ctx.from.id);
-  if (!session) return;
+  if (!session) {
+    await ctx.reply("Iltimos, /start buyrug'ini bosing.");
+    return;
+  }
 
   session.answers["education"] = "Oliy";
   session.questions = [
@@ -219,14 +257,17 @@ bot.action("oliy", async (ctx) => {
   ];
   session.step = 6;
 
-  ctx.reply(completedEducationQuestions[0].text, {
+  await ctx.reply(completedEducationQuestions[0].text, {
     reply_markup: { remove_keyboard: true },
   });
 });
 bot.action("orta", async (ctx) => {
-  await ctx.answerCbQuery();
+  await ack(ctx);
   const session = sessions.get(ctx.from.id);
-  if (!session) return;
+  if (!session) {
+    await ctx.reply("Iltimos, /start buyrug'ini bosing.");
+    return;
+  }
 
   session.answers["education"] = "o'rta";
   session.questions = [
@@ -236,14 +277,17 @@ bot.action("orta", async (ctx) => {
   ];
   session.step = 6;
 
-  ctx.reply(completedEducationQuestions[0].text, {
+  await ctx.reply(completedEducationQuestions[0].text, {
     reply_markup: { remove_keyboard: true },
   });
 });
 bot.action("incomplete", async (ctx) => {
-  await ctx.answerCbQuery();
+  await ack(ctx);
   const session = sessions.get(ctx.from.id);
-  if (!session) return;
+  if (!session) {
+    await ctx.reply("Iltimos, /start buyrug'ini bosing.");
+    return;
+  }
 
   session.answers["education"] = "Tugallanmagan oliy";
 
@@ -254,7 +298,7 @@ bot.action("incomplete", async (ctx) => {
   ];
   session.step = 6;
 
-  ctx.reply(incompleteEducationQuestions[0].text, {
+  await ctx.reply(incompleteEducationQuestions[0].text, {
     reply_markup: { remove_keyboard: true },
   });
 });
@@ -490,8 +534,35 @@ try {
   process.exit(1);
 }
 
-bot.launch();
+await startWeb();
+
+bot.catch((error) => {
+  console.error("Bot xatosi, ishlashda davom etadi:", error?.message || error);
+});
+
+let stopping = false;
+
+async function runBot() {
+  while (!stopping) {
+    try {
+      await bot.launch();
+    } catch (error) {
+      console.error("Bot uzildi:", error?.message || error);
+    }
+    if (stopping) break;
+    console.error("Bot 5 soniyadan keyin qayta ulanadi");
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+}
+
+runBot();
 console.log("🤖 Bot is running!");
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+process.once("SIGINT", () => {
+  stopping = true;
+  bot.stop("SIGINT");
+});
+process.once("SIGTERM", () => {
+  stopping = true;
+  bot.stop("SIGTERM");
+});

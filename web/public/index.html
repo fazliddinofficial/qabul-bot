@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Qabul paneli</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <section id="login-view" class="login-view hidden">
+      <form id="login-form" class="login-card">
+        <p class="eyebrow">Qabul boti</p>
+        <h1>Arizalar paneli</h1>
+        <p class="muted">Bot orqali to‘ldirilgan arizalar shu yerda.</p>
+        <label>
+          Login
+          <input name="username" autocomplete="username" required />
+        </label>
+        <label>
+          Parol
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <p id="login-error" class="error"></p>
+        <button type="submit">Kirish</button>
+      </form>
+    </section>
+
+    <main id="app-view" class="app hidden">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Qabul boti</p>
+          <h1>Qabul qilingan arizalar</h1>
+        </div>
+        <div class="top-actions">
+          <div class="account">
+            <button id="whoami" type="button" class="whoami" aria-expanded="false">
+              <span class="who-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19.2c1.2-3 3.5-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/></svg>
+              </span>
+              <span id="whoami-name"></span>
+            </button>
+            <div class="account-menu">
+              <button id="open-staff" type="button" class="ghost hidden">Hodimlar</button>
+              <button id="open-history" type="button" class="ghost">Tarix</button>
+              <button id="logout" type="button" class="ghost">Chiqish</button>
+            </div>
+          </div>
+          <div class="more">
+            <button id="more-actions" type="button" class="more-btn" aria-label="Import va eksport">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+            </button>
+            <div class="more-menu">
+              <button id="import-applications" type="button">Import</button>
+              <button id="export-applications" type="button">Eksport</button>
+            </div>
+          </div>
+          <input id="import-file" type="file" accept=".csv,text/csv" hidden />
+        </div>
+      </header>
+
+      <section id="stats" class="stats"></section>
+
+      <section class="toolbar">
+        <input id="search" type="search" placeholder="Ism, telefon yoki username bo‘yicha qidirish" />
+        <label class="date-field">
+          <input id="date-from" type="date" lang="uz" />
+          <span>Sanadan</span>
+        </label>
+        <label class="date-field">
+          <input id="date-to" type="date" lang="uz" />
+          <span>Sanagacha</span>
+        </label>
+      </section>
+
+      <div class="filters">
+        <label>
+          Yo‘nalish
+          <select id="position-filter"></select>
+        </label>
+        <label>
+          Suhbat
+          <select id="status-filter"></select>
+        </label>
+        <label>
+          Saralash
+          <select id="sort-filter">
+            <option value="all">Barchasi</option>
+            <option value="favorite">Izbranniy</option>
+            <option value="position" selected>Yo‘nalish</option>
+            <option value="newest">Yangisidan</option>
+            <option value="oldest">Eskisidan</option>
+            <option value="name">Ism</option>
+          </select>
+        </label>
+      </div>
+      <section id="list" class="groups"></section>
+    </main>
+
+    <dialog id="staff-dialog" class="staff-dialog">
+      <div class="detail-head">
+        <div>
+          <p class="eyebrow">Admin</p>
+          <h2>Hodimlar</h2>
+        </div>
+        <button id="close-staff" type="button" class="ghost">Yopish</button>
+      </div>
+      <form id="staff-form" class="staff-form">
+        <input type="hidden" name="id" />
+        <label>
+          Familiya
+          <input name="surname" required />
+        </label>
+        <label>
+          Ism
+          <input name="name" required />
+        </label>
+        <label>
+          Login
+          <input name="username" required autocomplete="off" />
+        </label>
+        <label>
+          Parol
+          <input name="password" type="password" autocomplete="new-password" placeholder="Yangi hodim uchun majburiy" />
+        </label>
+        <p id="staff-error" class="error"></p>
+        <button type="submit">Saqlash</button>
+      </form>
+      <div id="staff-list" class="staff-list"></div>
+    </dialog>
+
+    <dialog id="history-dialog" class="staff-dialog">
+      <div class="detail-head">
+        <div>
+          <p class="eyebrow">Tarix</p>
+          <h2>Kim nima qilgan</h2>
+        </div>
+        <button id="close-history" type="button" class="ghost">Yopish</button>
+      </div>
+      <div id="history-list" class="history-list"></div>
+    </dialog>
+
+    <dialog id="detail">
+      <div class="detail-head">
+        <button id="back-detail" type="button" class="icon-btn" aria-label="Orqaga">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
+        </button>
+        <div>
+          <p id="detail-position" class="eyebrow"></p>
+          <h2 id="detail-title">Ariza</h2>
+        </div>
+        <button id="detail-fav" type="button" class="fav" aria-label="Izbranniy">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/></svg>
+        </button>
+        <button id="close-detail" type="button" class="icon-btn" aria-label="Yopish">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div id="detail-body"></div>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

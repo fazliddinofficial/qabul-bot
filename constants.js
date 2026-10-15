@@ -21,4 +21,42 @@ export const POSITION_OPTIONS = {
 
 export const VALID_POSITIONS = Object.values(POSITION_OPTIONS);
 
+export const DEPARTMENTS = [
+  {
+    id: "office",
+    name: "Ma’muriyat",
+    positions: [POSITION_OPTIONS.manager, POSITION_OPTIONS.admin],
+  },
+  {
+    id: "languages",
+    name: "Chet tillari",
+    positions: [
+      POSITION_OPTIONS.english,
+      POSITION_OPTIONS.russian,
+      POSITION_OPTIONS.korean,
+      POSITION_OPTIONS.german,
+      POSITION_OPTIONS.japanese,
+      POSITION_OPTIONS.arabic,
+      POSITION_OPTIONS.turkish,
+    ],
+  },
+  {
+    id: "subjects",
+    name: "Fanlar",
+    positions: [
+      POSITION_OPTIONS.mathAndScience,
+      POSITION_OPTIONS.biologyAndChemistry,
+      POSITION_OPTIONS.computerOffice,
+      POSITION_OPTIONS.webDevelopment,
+      POSITION_OPTIONS.graphicDesign,
+      POSITION_OPTIONS.accounting,
+    ],
+  },
+  {
+    id: "specialists",
+    name: "Mutaxassislar",
+    positions: [POSITION_OPTIONS.marketing, POSITION_OPTIONS.trading],
+  },
+];
+
 export const POSITION_KEYBOARD = VALID_POSITIONS.map((pos) => [{ text: pos }]);
