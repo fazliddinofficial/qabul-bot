@@ -1,5 +1,15 @@
 import { VALID_POSITIONS } from "./constants.js";
 
+function isImageDocument(document) {
+  if (!document) return false;
+  const mimeType = document.mime_type?.toLowerCase() || "";
+  const fileName = document.file_name?.toLowerCase() || "";
+  return (
+    ["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(mimeType) ||
+    [".jpg", ".jpeg", ".png", ".webp"].some((ext) => fileName.endsWith(ext))
+  );
+}
+
 export const questions = [
   {
     id: "photo",
@@ -8,30 +18,16 @@ export const questions = [
     📸 1) Foto suratingizni yuboring
 
     ⚠️ Diqqat:
-    • Galereyadan eski rasm yubormang❗
-    • Rasmni bevosita kameradan olish majburiy❗
     • Yuzingiz aniq va yorug‘ ko‘rinsin
     • Rasm sifatli bo‘lishi kerak
+    • JPG, PNG yoki WEBP bo‘lsin
     `,
     type: "photo",
     validate: (ctx) => {
       if (ctx.message?.photo) return true;
-
-      if (ctx.message?.document) {
-        const mimeType = ctx.message.document.mime_type;
-        const fileName = ctx.message.document.file_name?.toLowerCase() || "";
-
-        return (
-          mimeType === "image/jpg" ||
-          mimeType === "image/jpeg" ||
-          fileName.endsWith(".jpg") ||
-          fileName.endsWith(".jpeg")
-        );
-      }
-
-      return false;
+      return isImageDocument(ctx.message?.document);
     },
-    errorMsg: "❌ Iltimos, faqat JPG formatidagi rasm yuboring!",
+    errorMsg: "❌ Iltimos, rasm yuboring (JPG, PNG yoki WEBP)!",
     extract: (ctx) => {
       if (ctx.message.photo) {
         return ctx.message.photo[ctx.message.photo.length - 1].file_id;
@@ -182,7 +178,7 @@ export const questions = [
   },
   {
     id: "parentPhone",
-    text: "13) Otangizni yoki onangizni telefon raqamini kiriting:",
+    text: "13) Qo'shimcha telefon raqam yoki ota-onangizning telefon raqamini kiriting:",
     type: "text",
     validate: (ctx) => {
       const phone = ctx.message?.text?.replace(/\s/g, "") || "";
@@ -222,7 +218,7 @@ export const questions = [
   },
   {
     id: "phone",
-    text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Ota-ona raqamidan farq qilishi shart:",
+    text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Qo'shimcha yoki ota-ona raqamidan farq qilishi shart:",
     type: "contact",
     validate: (ctx) => {
       return (

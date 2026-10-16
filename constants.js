@@ -17,6 +17,8 @@ export const POSITION_OPTIONS = {
   accounting: "Buxgalteriya o'qituvchisi",
   marketing: "SMM va mobilografiya mutaxassis",
   trading: "Treyding o'qituvchisi",
+  mentalArithmetic: "Mental arifmetika o'qituvchisi",
+  otherCourses: "Boshqa kurslar",
 };
 
 export const VALID_POSITIONS = Object.values(POSITION_OPTIONS);
@@ -50,6 +52,8 @@ export const DEPARTMENTS = [
       POSITION_OPTIONS.webDevelopment,
       POSITION_OPTIONS.graphicDesign,
       POSITION_OPTIONS.accounting,
+      POSITION_OPTIONS.mentalArithmetic,
+      POSITION_OPTIONS.otherCourses,
     ],
   },
   {

@@ -51,7 +51,7 @@ const reviewFields = [
   ["agreedSalary", "Kelishilgan oylik"],
   ["expectedSalary", "Kutilayotgan oylik"],
   ["phone", "Telefon"],
-  ["parentPhone", "Ota-ona telefoni"],
+  ["parentPhone", "Qo'shimcha yoki ota-ona telefoni"],
   ["workHours", "Ish vaqti"],
   ["workDuration", "Ishlash muddati"],
   ["passportSeries", "Pasport seriyasi"],

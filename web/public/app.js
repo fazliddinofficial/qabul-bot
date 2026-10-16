@@ -21,7 +21,7 @@ const labels = {
   nation: "Millati",
   address: "Manzil",
   phone: "Telefon",
-  parentPhone: "Ota-ona telefoni",
+  parentPhone: "Qo'shimcha yoki ota-ona telefoni",
   education: "Ma’lumot",
   institution: "O‘quv muassasasi",
   graduationYear: "Tugatish yili",
@@ -505,7 +505,7 @@ function cardHtml(item) {
           <p><span class="id-label">Telefon</span><span class="id-value">${esc(formatPhone(item.phone) || "—")}</span></p>
           <p><span class="id-label">Tug‘ilgan sanasi</span><span class="id-meta">${esc(item.birthday || "—")}</span></p>
           <p><span class="id-label">Yo‘nalish</span><span class="id-meta">${esc(item.position || "—")}</span></p>
-          <p><span class="id-label">Ota-ona telefoni</span><span class="id-meta">${esc(formatPhone(item.parentPhone) || "—")}</span></p>
+          <p><span class="id-label">Qo'shimcha yoki ota-ona telefoni</span><span class="id-meta">${esc(formatPhone(item.parentPhone) || "—")}</span></p>
           <p><span class="id-label">Til darajasi</span><span class="id-meta">${esc(item.languageLevel || "—")}</span></p>
         </div>
       </div>
@@ -738,7 +738,7 @@ async function openDetail(id, silent = false) {
           <div class="pass-next">
             ${block("Tug‘ilgan sana", item.birthday)}
             ${editCard("phone", "Telefon", formatPhone(item.phone), `<input name="phone" value="${esc(formatPhone(item.phone))}" placeholder="99 999 99 99" />`, true)}
-            ${editCard("parentPhone", "Ota-ona telefoni", formatPhone(item.parentPhone), `<input name="parentPhone" value="${esc(formatPhone(item.parentPhone))}" placeholder="99 999 99 99" />`, true)}
+            ${editCard("parentPhone", "Qo'shimcha yoki ota-ona telefoni", formatPhone(item.parentPhone), `<input name="parentPhone" value="${esc(formatPhone(item.parentPhone))}" placeholder="99 999 99 99" />`, true)}
             ${block("Millati", item.nation)}
             ${block("Oilaviy holat", item.maritalStatus)}
           </div>
@@ -1242,7 +1242,7 @@ document.querySelector("#export-applications").addEventListener("click", () => {
     ["position", "Yo‘nalish"],
     ["birthday", "Tug‘ilgan sana"],
     ["phone", "Telefon"],
-    ["parentPhone", "Ota-ona telefoni"],
+    ["parentPhone", "Qo'shimcha yoki ota-ona telefoni"],
     ["address", "Manzil"],
     ["nation", "Millati"],
     ["education", "Ma’lumot"],
@@ -1298,7 +1298,7 @@ const importColumns = [
   ["position", "Yo‘nalish"],
   ["birthday", "Tug‘ilgan sana"],
   ["phone", "Telefon"],
-  ["parentPhone", "Ota-ona telefoni"],
+  ["parentPhone", "Qo'shimcha yoki ota-ona telefoni"],
   ["address", "Manzil"],
   ["nation", "Millati"],
   ["education", "Ma’lumot"],

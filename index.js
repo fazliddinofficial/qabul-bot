@@ -334,12 +334,15 @@ bot.on("message", async (ctx) => {
     phonesMatch(extractedValue, session.answers.parentPhone)
   ) {
     return ctx.reply(
-      "❌ Bu raqam ota-onangiz raqami bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
+      "❌ Bu raqam qo'shimcha yoki ota-ona raqamingiz bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
       { reply_markup: phoneKeyboard },
     );
   }
 
   session.answers[currentQuestion.id] = extractedValue;
+  if (currentQuestion.id === "photo") {
+    session.answers.photoKind = ctx.message?.photo ? "photo" : "document";
+  }
   session.step++;
 
   if (session.step < session.questions.length) {
@@ -450,6 +453,54 @@ async function persistApplication(ctx, session) {
   }
 }
 
+function splitTelegramText(text, limit = 4000) {
+  const parts = [];
+  let rest = String(text || "");
+  while (rest.length > limit) {
+    let cut = rest.lastIndexOf("\n", limit);
+    if (cut < Math.floor(limit / 2)) cut = limit;
+    parts.push(rest.slice(0, cut));
+    rest = rest.slice(cut).replace(/^\n/, "");
+  }
+  if (rest.trim()) parts.push(rest);
+  return parts;
+}
+
+async function sendRecruitmentFile(ctx, fileId, opts, asDocument) {
+  if (asDocument) {
+    await ctx.telegram.sendDocument(CHANNEL_OR_GROUP_TOKEN, fileId, opts);
+    return;
+  }
+  await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, fileId, opts);
+}
+
+async function sendRecruitmentText(ctx, text) {
+  let sent = false;
+  for (const part of splitTelegramText(text)) {
+    try {
+      await ctx.telegram.sendMessage(CHANNEL_OR_GROUP_TOKEN, part, {
+        parse_mode: "HTML",
+      });
+      sent = true;
+    } catch (error) {
+      console.error(
+        "Matn yuborilmadi:",
+        error.response?.description || error.message,
+      );
+      try {
+        await ctx.telegram.sendMessage(CHANNEL_OR_GROUP_TOKEN, part);
+        sent = true;
+      } catch (err2) {
+        console.error(
+          "Matn qayta yuborilmadi:",
+          err2.response?.description || err2.message,
+        );
+      }
+    }
+  }
+  return sent;
+}
+
 async function sendToRecruiter(ctx, session) {
   const answers = session.answers;
 
@@ -461,7 +512,7 @@ async function sendToRecruiter(ctx, session) {
 🗓️ <b>Tug'ilgan sanasi:</b> ${answers.birthday}
 📍 <b>Manzil:</b> ${answers.address}
 📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}
-👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
+👨‍👩‍👦 <b>Qo'shimcha yoki ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
 🌍 <b>Millati:</b> ${answers.nation}
 
 💼 <b>Yo'nalish:</b> ${answers.position}
@@ -484,34 +535,33 @@ async function sendToRecruiter(ctx, session) {
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
 `;
 
-  const opts = { caption: msg, parse_mode: "HTML" };
+  const caption = `📩 <b>Yangi ish so'rov</b>\n👤 ${answers.fullName || ""}\n👔 ${answers.position || ""}`.slice(0, 1000);
+  const opts = { caption, parse_mode: "HTML" };
+  const preferDocument = answers.photoKind === "document";
   let sent = false;
 
   try {
-    await ctx.telegram.sendDocument(
-      CHANNEL_OR_GROUP_TOKEN,
-      answers.photo,
-      opts,
-    );
+    await sendRecruitmentFile(ctx, answers.photo, opts, preferDocument);
     sent = true;
   } catch (error) {
     console.error(
-      "sendDocument failed:",
+      "Rasm yuborilmadi:",
       error.response?.description || error.message,
     );
-
     try {
-      await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, answers.photo, opts);
+      await sendRecruitmentFile(ctx, answers.photo, opts, !preferDocument);
       sent = true;
     } catch (err2) {
       console.error(
-        "sendPhoto also failed:",
+        "Rasm qayta yuborilmadi:",
         err2.response?.description || err2.message,
       );
     }
   }
 
-  if (sent) {
+  const textSent = await sendRecruitmentText(ctx, msg);
+
+  if (sent || textSent) {
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
   } else {
     ctx.reply(

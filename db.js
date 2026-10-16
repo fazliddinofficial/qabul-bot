@@ -86,6 +86,7 @@ const applicationSchema = new mongoose.Schema(
     archived: { type: Boolean, default: false },
     archivedAt: { type: Date, default: null },
     hasPhoto: { type: Boolean, default: false },
+    photoFileId: { type: String, default: "" },
     photo: {
       data: Buffer,
       contentType: { type: String, default: "image/jpeg" },
@@ -407,6 +408,27 @@ async function downloadTelegramFile(fileId) {
   };
 }
 
+async function downloadTelegramFileWithRetry(fileId) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await downloadTelegramFile(fileId);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
+function storedPhoto(doc) {
+  if (!doc?.photo?.data) return null;
+  const raw = doc.photo.data;
+  const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer || raw);
+  if (!data.length) return null;
+  return { data, contentType: doc.photo.contentType || "image/jpeg" };
+}
+
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -479,14 +501,24 @@ export async function getApplicationPhoto(id) {
     _id: id,
     ownerToken: ownerToken(),
   })
-    .select("photo hasPhoto")
+    .select("photo hasPhoto photoFileId")
     .lean();
 
-  if (!doc?.hasPhoto || !doc.photo?.data) return null;
-  const raw = doc.photo.data;
-  const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer || raw);
-  if (!data.length) return null;
-  return { data, contentType: doc.photo.contentType };
+  const stored = storedPhoto(doc);
+  if (stored) return stored;
+  if (!doc?.photoFileId) return null;
+
+  try {
+    const file = await downloadTelegramFileWithRetry(doc.photoFileId);
+    await Application.updateOne(
+      { _id: id, ownerToken: ownerToken() },
+      { photo: file, hasPhoto: true },
+    );
+    return file;
+  } catch (error) {
+    console.error("Rasm qayta yuklanmadi:", error.message);
+    return null;
+  }
 }
 
 function fileBuffer(raw) {
@@ -738,17 +770,6 @@ async function nextContractNumber() {
   return `${String(max + 1).padStart(2, "0")}/${year}`;
 }
 
-async function nextContractNumber() {
-  const year = new Date().getFullYear();
-  const rows = await Application.find({ ownerToken: ownerToken() }).select("contractNumber").lean();
-  let max = 0;
-  for (const row of rows) {
-    const match = String(row.contractNumber || "").match(/^(\d+)/);
-    if (match) max = Math.max(max, Number(match[1]));
-  }
-  return `${String(max + 1).padStart(2, "0")}/${year}`;
-}
-
 export async function saveApplication({ telegramUserId, username, answers }) {
   const doc = {
     ownerToken: ownerToken(),
@@ -763,11 +784,13 @@ export async function saveApplication({ telegramUserId, username, answers }) {
   doc.contractNumber = await nextContractNumber();
 
   if (answers.photo) {
+    doc.photoFileId = String(answers.photo);
     try {
-      doc.photo = await downloadTelegramFile(answers.photo);
+      doc.photo = await downloadTelegramFileWithRetry(answers.photo);
       doc.hasPhoto = true;
     } catch (error) {
       console.error("Rasm saqlanmadi:", error.message);
+      doc.hasPhoto = true;
     }
   }
 
