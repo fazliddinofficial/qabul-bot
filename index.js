@@ -476,19 +476,6 @@ async function persistApplication(ctx, session) {
   }
 }
 
-function splitTelegramText(text, limit = 4000) {
-  const parts = [];
-  let rest = String(text || "");
-  while (rest.length > limit) {
-    let cut = rest.lastIndexOf("\n", limit);
-    if (cut < Math.floor(limit / 2)) cut = limit;
-    parts.push(rest.slice(0, cut));
-    rest = rest.slice(cut).replace(/^\n/, "");
-  }
-  if (rest.trim()) parts.push(rest);
-  return parts;
-}
-
 async function sendRecruitmentFile(ctx, fileId, opts, asDocument) {
   if (asDocument) {
     await ctx.telegram.sendDocument(CHANNEL_OR_GROUP_TOKEN, fileId, opts);
@@ -497,78 +484,71 @@ async function sendRecruitmentFile(ctx, fileId, opts, asDocument) {
   await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, fileId, opts);
 }
 
-async function sendRecruitmentText(ctx, text) {
-  let sent = false;
-  for (const part of splitTelegramText(text)) {
-    try {
-      await ctx.telegram.sendMessage(CHANNEL_OR_GROUP_TOKEN, part, {
-        parse_mode: "HTML",
-      });
-      sent = true;
-    } catch (error) {
-      console.error(
-        "Matn yuborilmadi:",
-        error.response?.description || error.message,
-      );
-      try {
-        await ctx.telegram.sendMessage(CHANNEL_OR_GROUP_TOKEN, part);
-        sent = true;
-      } catch (err2) {
-        console.error(
-          "Matn qayta yuborilmadi:",
-          err2.response?.description || err2.message,
-        );
-      }
-    }
+function clipText(value, max) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function recruitmentCaption(answers, ctx) {
+  const limits = {
+    prevJob: 500,
+    address: 220,
+    institution: 160,
+    foundResource: 80,
+  };
+
+  const build = () =>
+    `
+📩 <b>Yangi ish so'rov</b>
+
+👔 <b>#${clipText(answers.position, 80)}</b>
+👤 <b>I.F.Sh:</b> ${clipText(answers.fullName, 80)}
+🗓️ <b>Tug'ilgan sanasi:</b> ${clipText(answers.birthday, 20)}
+📍 <b>Manzil:</b> ${clipText(answers.address, limits.address)}
+📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}
+👨‍👩‍👦 <b>Qo'shimcha yoki ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
+🌍 <b>Millati:</b> ${clipText(answers.nation, 40)}
+
+💼 <b>Yo'nalish:</b> ${clipText(answers.position, 80)}
+🎓 <b>Ma'lumot:</b> ${clipText(answers.education, 40)}
+🎓 <b>Oliygoh nomi va yo'nalishi:</b> ${clipText(answers.institution, limits.institution)}
+🎓 <b>Tugatish yoki tugallagan yil:</b> ${clipText(answers.graduationYear, 40)}
+🌐 <b>Til darajasi:</b> ${clipText(answers.languageLevel, 40)}
+💻 <b>Kompyuter:</b> ${clipText(answers.computerSkills, 40)}
+
+📋 <b>Oldingi ish:</b> ${clipText(answers.prevJob, limits.prevJob)}
+💰 <b>Oxirgi oylik:</b> ${clipText(answers.lastSalary, 30)}
+💵 <b>Kutilayotgan oylik:</b> ${clipText(answers.expectedSalary, 30)}
+
+💑 <b>Oilaviy holat:</b> ${clipText(answers.maritalStatus, 40)}
+⏰ <b>Ish vaqti:</b> ${clipText(answers.workHours, 40)}
+📅 <b>Ishlash davomiyligi:</b> ${clipText(answers.workDuration, 80)}
+🌐 <b>Ishni topgan manbalar: #${clipText(answers.foundResource, limits.foundResource)}</b>
+
+🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
+🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
+`.trim();
+
+  let caption = build();
+  while (caption.length > 1024 && limits.prevJob > 40) {
+    limits.prevJob -= 40;
+    caption = build();
   }
-  return sent;
+  while (caption.length > 1024 && limits.address > 40) {
+    limits.address -= 20;
+    caption = build();
+  }
+  while (caption.length > 1024 && limits.institution > 40) {
+    limits.institution -= 20;
+    caption = build();
+  }
+  return caption.length > 1024 ? caption.slice(0, 1024) : caption;
 }
 
 async function sendToRecruiter(ctx, session) {
   const answers = session.answers;
-
-  const msg = `
-📩 <b>Yangi ish so'rov</b>
-
-👔 <b>#${answers.position}</b>
-👤 <b>I.F.Sh:</b> ${answers.fullName}
-🗓️ <b>Tug'ilgan sanasi:</b> ${answers.birthday}
-📍 <b>Manzil:</b> ${answers.address}
-📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}
-👨‍👩‍👦 <b>Qo'shimcha yoki ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
-🌍 <b>Millati:</b> ${answers.nation}
-
-💼 <b>Yo'nalish:</b> ${answers.position}
-🎓 <b>Ma'lumot:</b> ${answers.education}
-🎓 <b>Oliygoh nomi va yo'nalishi:</b> ${answers.institution}
-🎓 <b>Tugatish yoki tugallagan yil:</b> ${answers.graduationYear}
-🌐 <b>Til darajasi:</b> ${answers.languageLevel}
-💻 <b>Kompyuter:</b> ${answers.computerSkills}
-
-📋 <b>Oldingi ish:</b> ${answers.prevJob}
-💰 <b>Oxirgi oylik:</b> ${answers.lastSalary}
-💵 <b>Kutilayotgan oylik:</b> ${answers.expectedSalary}
-
-💑 <b>Oilaviy holat:</b> ${answers.maritalStatus}
-⏰ <b>Ish vaqti:</b> ${answers.workHours}
-📅 <b>Ishlash davomiyligi:</b> ${answers.workDuration}
-🌐 <b>Ishni topgan manbalar: #${answers.foundResource}</b>
-
-🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
-🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
-`;
-
-  const fullText = msg.trim();
-  const captionLimit = 1024;
-  let caption = fullText;
-  let overflow = "";
-  if (fullText.length > captionLimit) {
-    let cut = fullText.lastIndexOf("\n", captionLimit);
-    if (cut < captionLimit / 2) cut = captionLimit;
-    caption = fullText.slice(0, cut);
-    overflow = fullText.slice(cut).trim();
-  }
-  const opts = { caption, parse_mode: "HTML" };
+  const opts = { caption: recruitmentCaption(answers, ctx), parse_mode: "HTML" };
   const preferDocument = answers.photoKind === "document";
   let sent = false;
 
@@ -591,9 +571,7 @@ async function sendToRecruiter(ctx, session) {
     }
   }
 
-  const textSent = overflow ? await sendRecruitmentText(ctx, overflow) : false;
-
-  if (sent || textSent) {
+  if (sent) {
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
   } else {
     ctx.reply(
