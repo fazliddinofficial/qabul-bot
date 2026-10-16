@@ -175,7 +175,7 @@ export const questions = [
     text: "11) Oxirgi ishlagan ishingizda oylik maoshingizni faqat raqamda kiriting:",
     type: "text",
     validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
-    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 3500000",
+    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 5000000",
     extract: (ctx) => salaryAmount(ctx.message.text),
   },
   {

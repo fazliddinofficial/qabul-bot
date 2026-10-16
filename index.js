@@ -30,8 +30,12 @@ bot.telegram.callApi = async (method, payload, options) => {
       return await originalCallApi(method, payload, options);
     } catch (error) {
       lastError = error;
-      const message = error?.message || "";
-      const transient = /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|FetchError|network/i.test(message);
+      const message = `${error?.message || ""} ${error?.cause?.message || ""} ${error?.code || ""}`;
+      const status = error?.response?.error_code;
+      const transient =
+        status === 429 ||
+        status >= 500 ||
+        /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|FetchError|network|failed, reason|EPIPE|UND_ERR/i.test(message);
       if (!transient || attempt === 3 || error?.name === "AbortError") throw error;
       console.error(`${method} qayta uriniladi (${attempt}/3):`, message);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
@@ -324,7 +328,12 @@ bot.on("message", async (ctx) => {
   const currentQuestion = session.questions[session.step];
 
   if (!currentQuestion.validate(ctx)) {
-    return ctx.reply(currentQuestion.errorMsg);
+    try {
+      await ctx.reply(currentQuestion.errorMsg);
+    } catch (error) {
+      console.error("Xato javobi yuborilmadi:", error?.message || error);
+    }
+    return;
   }
 
   const extractedValue = currentQuestion.extract(ctx);
