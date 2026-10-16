@@ -692,6 +692,7 @@ export async function updateApplicationReview(id, input, actor) {
   delete item.passportBack;
   delete item.diploma;
   delete item.certificate;
+  delete item.signedContract;
   return item;
 }
 
@@ -724,6 +725,17 @@ export async function restoreApplication(id) {
   )
     .select(withoutFiles)
     .lean();
+}
+
+async function nextContractNumber() {
+  const year = new Date().getFullYear();
+  const rows = await Application.find({ ownerToken: ownerToken() }).select("contractNumber").lean();
+  let max = 0;
+  for (const row of rows) {
+    const match = String(row.contractNumber || "").match(/^(\d+)/);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `${String(max + 1).padStart(2, "0")}/${year}`;
 }
 
 async function nextContractNumber() {
