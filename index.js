@@ -558,7 +558,16 @@ async function sendToRecruiter(ctx, session) {
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
 `;
 
-  const caption = `📩 <b>Yangi ish so'rov</b>\n👤 ${answers.fullName || ""}\n👔 ${answers.position || ""}`.slice(0, 1000);
+  const fullText = msg.trim();
+  const captionLimit = 1024;
+  let caption = fullText;
+  let overflow = "";
+  if (fullText.length > captionLimit) {
+    let cut = fullText.lastIndexOf("\n", captionLimit);
+    if (cut < captionLimit / 2) cut = captionLimit;
+    caption = fullText.slice(0, cut);
+    overflow = fullText.slice(cut).trim();
+  }
   const opts = { caption, parse_mode: "HTML" };
   const preferDocument = answers.photoKind === "document";
   let sent = false;
@@ -582,7 +591,7 @@ async function sendToRecruiter(ctx, session) {
     }
   }
 
-  const textSent = await sendRecruitmentText(ctx, msg);
+  const textSent = overflow ? await sendRecruitmentText(ctx, overflow) : false;
 
   if (sent || textSent) {
     ctx.reply("✅ So'rovingiz qabul qilindi! Tez orada siz bilan bog'lanamiz.");
