@@ -1,5 +1,15 @@
 import { VALID_POSITIONS } from "./constants.js";
 
+function salaryAmount(text) {
+  const raw = String(text || "").trim();
+  if (!/^[\d\s]+$/.test(raw)) return "";
+  const digits = raw.replace(/\s/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits || digits.length > 12) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+const WORK_SHIFTS = ["1-smena", "2-smena", "to'liq smena"];
+
 function isImageDocument(document) {
   if (!document) return false;
   const mimeType = document.mime_type?.toLowerCase() || "";
@@ -162,11 +172,11 @@ export const questions = [
   },
   {
     id: "lastSalary",
-    text: "11) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+    text: "11) Oxirgi ishlagan ishingizda oylik maoshingizni faqat raqamda kiriting:",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
+    validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
+    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 3500000",
+    extract: (ctx) => salaryAmount(ctx.message.text),
   },
   {
     id: "workDuration",
@@ -197,24 +207,19 @@ export const questions = [
   },
   {
     id: "workHours",
-    text: `15) Soat nechidan nechigacha ishlay olasiz?
-
-    📌 Misol:
-    09:00 dan 14:00 gacha
-    yoki
-    14:00 dan 20:00 gacha`,
+    text: "15) Soat nechidan nechigacha ishlay olasiz?",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, ish vaqtingizni kiriting!",
+    validate: (ctx) => WORK_SHIFTS.includes(ctx.message?.text?.trim()),
+    errorMsg: "❌ Iltimos, pastdagi tugmalardan birini tanlang!",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
     id: "expectedSalary",
-    text: "16) Bizdan qancha oylikga ishlamoqchisiz?",
+    text: "16) Bizdan qancha oylikga ishlamoqchisiz? Summani faqat raqamda kiriting:",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, kutilayotgan maoshingizni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
+    validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
+    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 5000000",
+    extract: (ctx) => salaryAmount(ctx.message.text),
   },
   {
     id: "phone",

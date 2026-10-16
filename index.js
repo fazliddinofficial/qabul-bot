@@ -390,6 +390,20 @@ bot.on("message", async (ctx) => {
       );
     }
 
+    if (nextQuestion.id === "workHours") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: [
+            [{ text: "1-smena" }],
+            [{ text: "2-smena" }],
+            [{ text: "to'liq smena" }],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
+    }
+
     if (nextQuestion.id === "maritalStatus") {
       return ctx.reply(nextQuestion.text, {
         reply_markup: {
