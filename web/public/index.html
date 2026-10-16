@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Qabul paneli</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=4" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -29,9 +29,10 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">Qabul boti</p>
-          <h1>Qabul qilingan arizalar</h1>
+          <h1 id="page-title">Qabul qilingan arizalar</h1>
         </div>
         <div class="top-actions">
+          <button id="open-archive" type="button" class="ghost archive-btn" aria-pressed="false">Arxiv</button>
           <div class="account">
             <button id="whoami" type="button" class="whoami" aria-expanded="false">
               <span class="who-icon" aria-hidden="true">
@@ -158,6 +159,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=4"></script>
   </body>
 </html>

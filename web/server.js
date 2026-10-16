@@ -8,10 +8,15 @@ import {
   authenticateStaff,
   createStaff,
   deleteApplication,
+  restoreApplication,
   deleteStaff,
   ensureDefaultAdmin,
   getApplicationById,
   getApplicationPhoto,
+  getApplicationFile,
+  saveApplicationFile,
+  clearApplicationFile,
+  DOC_SLOTS,
   listApplications,
   importApplications,
   listActivity,
@@ -48,6 +53,24 @@ const reviewFields = [
   ["phone", "Telefon"],
   ["parentPhone", "Ota-ona telefoni"],
   ["workHours", "Ish vaqti"],
+  ["workDuration", "Ishlash muddati"],
+  ["passportSeries", "Pasport seriyasi"],
+  ["jshshir", "JSHSHIR"],
+  ["contractNumber", "Shartnoma raqami"],
+  ["contractKind", "Shartnoma turi"],
+  ["hiredAt", "Ishga qabul qilingan kun"],
+  ["contractTerm", "Shartnoma muddati (oy)"],
+  ["contractEnd", "Shartnoma tugash sanasi"],
+  ["department", "Bo‘lim"],
+  ["probation", "Sinov muddati"],
+  ["perStudentPay", "O‘quvchi uchun haq"],
+  ["passportIssued", "Pasport berilgan sana"],
+  ["passportIssuer", "Pasport bergan organ"],
+  ["position", "Lavozim"],
+  ["fullName", "I.F.Sh"],
+  ["fatherName", "Otasining ismi"],
+  ["address", "Manzil"],
+  ["birthday", "Tug‘ilgan sana"],
   ["note", "Izoh"],
   ["callerName", "Suhbatga chaqirgan"],
   ["interviewerName", "Suhbat o‘tkazuvchi"],
@@ -73,6 +96,26 @@ function reviewChanges(before, after) {
   return reviewFields
     .filter(([key]) => shown(key, before?.[key]) !== shown(key, after?.[key]))
     .map(([key, label]) => `${label}: ${shown(key, before?.[key])} → ${shown(key, after?.[key])}`);
+}
+
+function sendStoredFile(res, file, downloadLabel) {
+  const contentType = file.contentType || "application/octet-stream";
+  res.setHeader("Content-Type", contentType);
+  if (downloadLabel) {
+    const ext = contentType.includes("pdf")
+      ? "pdf"
+      : contentType.includes("png")
+        ? "png"
+        : contentType.includes("webp")
+          ? "webp"
+          : "jpg";
+    const name = `${String(downloadLabel).replace(/[\\/:*?"<>|]+/g, "").trim() || "rasm"}.${ext}`;
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader("Cache-Control", "private, no-store");
+  } else {
+    res.setHeader("Cache-Control", "private, max-age=3600");
+  }
+  res.send(Buffer.from(file.data));
 }
 
 export async function startWeb() {
@@ -222,6 +265,7 @@ export async function startWeb() {
     const items = await listApplications({
       q: req.query.q,
       position: req.query.position,
+      archived: req.query.archived === "1",
     });
     res.json({ items, positions: VALID_POSITIONS, departments: DEPARTMENTS });
   });
@@ -266,19 +310,99 @@ export async function startWeb() {
     if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
     await recordActivity({
       actor: actorOf(req),
-      action: "Arizani o‘chirdi",
+      action: "Arxivga o‘tkazdi",
       detail: [before?.fullName, before?.position].filter(Boolean).join(", ") || "Ariza",
     });
     res.json({ ok: true });
   });
 
+  app.post("/api/applications/:id/restore", requireAuth, requireAdmin, async (req, res) => {
+    const item = await restoreApplication(req.params.id);
+    if (!item) return res.status(404).json({ error: "Arxivda bunday ariza yo‘q" });
+    await recordActivity({
+      actor: actorOf(req),
+      action: "Arxivdan qaytardi",
+      detail: [item.fullName, item.position].filter(Boolean).join(", ") || "Ariza",
+    });
+    res.json({ item });
+  });
+
   app.get("/api/applications/:id", requireAuth, async (req, res) => {
     const item = await getApplicationById(req.params.id);
     if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
+    if (req.query.silent !== "1") {
+      await recordActivity({
+        actor: actorOf(req),
+        action: "Arizani ochdi",
+        detail: [item.fullName, item.position].filter(Boolean).join(", "),
+      });
+    }
+    res.json({ item });
+  });
+
+  const docTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+
+  function docContentType(req) {
+    let contentType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+    if (!docTypes.has(contentType)) {
+      const name = decodeURIComponent(String(req.headers["x-file-name"] || "")).toLowerCase();
+      if (name.endsWith(".pdf")) contentType = "application/pdf";
+      else if (name.endsWith(".png")) contentType = "image/png";
+      else if (name.endsWith(".webp")) contentType = "image/webp";
+      else if (name.endsWith(".jpg") || name.endsWith(".jpeg")) contentType = "image/jpeg";
+    }
+    return contentType;
+  }
+
+  app.get("/api/applications/:id/docs/:slot", requireAuth, async (req, res) => {
+    const meta = DOC_SLOTS[req.params.slot];
+    if (!meta) return res.status(404).end();
+    const file = await getApplicationFile(req.params.id, req.params.slot);
+    if (!file) return res.status(404).end();
+    sendStoredFile(res, file, req.query.download === "1" ? meta.label : "");
+  });
+
+  app.put(
+    "/api/applications/:id/docs/:slot",
+    requireAuth,
+    express.raw({ type: () => true, limit: "15mb" }),
+    async (req, res) => {
+      const meta = DOC_SLOTS[req.params.slot];
+      if (!meta) return res.status(404).json({ error: "Hujjat turi topilmadi" });
+      const contentType = docContentType(req);
+      const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (!docTypes.has(contentType) || !data.length) {
+        return res.status(400).json({ error: "Faqat JPG, PNG, WEBP yoki PDF, 15 MB gacha" });
+      }
+      const item = await saveApplicationFile(req.params.id, req.params.slot, {
+        data,
+        contentType,
+        fileName: decodeURIComponent(String(req.headers["x-file-name"] || ""))
+          .split(/[/\\]/)
+          .pop()
+          .replace(/[\r\n\0]/g, "")
+          .trim()
+          .slice(0, 120),
+      });
+      if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
+      await recordActivity({
+        actor: actorOf(req),
+        action: "Hujjat joyladi",
+        detail: `${item.fullName || "Ariza"}. ${meta.label}`,
+      });
+      res.json({ item });
+    },
+  );
+
+  app.delete("/api/applications/:id/docs/:slot", requireAuth, async (req, res) => {
+    const meta = DOC_SLOTS[req.params.slot];
+    if (!meta) return res.status(404).json({ error: "Hujjat turi topilmadi" });
+    const item = await clearApplicationFile(req.params.id, req.params.slot);
+    if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
     await recordActivity({
       actor: actorOf(req),
-      action: "Arizani ochdi",
-      detail: [item.fullName, item.position].filter(Boolean).join(", "),
+      action: "Hujjatni olib tashladi",
+      detail: `${item.fullName || "Ariza"}. ${meta.label}`,
     });
     res.json({ item });
   });
@@ -286,9 +410,7 @@ export async function startWeb() {
   app.get("/api/applications/:id/photo", requireAuth, async (req, res) => {
     const photo = await getApplicationPhoto(req.params.id);
     if (!photo) return res.status(404).end();
-    res.setHeader("Content-Type", photo.contentType || "image/jpeg");
-    res.setHeader("Cache-Control", "private, max-age=3600");
-    res.send(Buffer.from(photo.data));
+    sendStoredFile(res, photo, req.query.download === "1" ? "Nomzod rasmi" : "");
   });
 
   app.use(express.static(path.join(__dirname, "public")));

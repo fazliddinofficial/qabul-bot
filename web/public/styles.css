@@ -302,11 +302,40 @@ button.idcard:hover { filter: brightness(0.99); }
   box-shadow: 0 2px 8px rgba(20, 40, 60, 0.12);
   cursor: pointer;
 }
-.idcard .fav {
+.idcard > .fav,
+.card-acts {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 3;
+}
+.card-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-acts .fav { position: static; }
+.card-act {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  color: #9f2d2d;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(20, 40, 60, 0.12);
+  cursor: pointer;
+}
+.card-act.restore { color: #0c6b52; }
+.card-act svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .fav svg {
   width: 18px;
@@ -347,6 +376,7 @@ button.idcard:hover { filter: brightness(0.99); }
   font-size: 15px;
   padding: 7px 46px 7px 14px;
 }
+.idcard.has-act .id-title { padding-right: 92px; }
 
 .id-added {
   margin-left: auto;
@@ -515,6 +545,16 @@ button.idcard:hover { filter: brightness(0.99); }
 }
 
 .top-actions { display: flex; align-items: center; gap: 10px; }
+.archive-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.archive-btn.on {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
 .account { position: relative; }
 .whoami {
   display: inline-flex;
@@ -703,9 +743,9 @@ dialog {
   background: transparent;
 }
 
-#back-detail { margin-right: auto; }
 .detail-head .eyebrow,
 .detail-head h2 { display: none; }
+#back-detail { margin-right: auto; }
 
 .pass {
   display: flex;
@@ -740,6 +780,33 @@ dialog {
   display: flex;
   align-items: flex-start;
   justify-content: center;
+}
+
+.photo-frame { position: relative; width: 156px; }
+.photo-download {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1b2430;
+  border: 0;
+  box-shadow: 0 2px 8px rgba(16, 32, 48, 0.18);
+}
+.photo-download svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .pass-side {
@@ -847,11 +914,34 @@ button.danger {
   background: #111;
 }
 
-.lightbox .ghost {
+.lightbox .ghost,
+.lightbox > .icon-btn {
   position: absolute;
   top: 18px;
   right: 18px;
   background: #fff;
+}
+.lightbox-tools {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 2;
+}
+.lightbox-tools .icon-btn {
+  width: 44px;
+  height: 44px;
+  background: #fff;
+  color: #17202a;
+  border: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+.lightbox-tools .icon-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.4;
 }
 
 .pass-identity {
@@ -869,12 +959,120 @@ button.danger {
   grid-row: span 2;
 }
 
-.pass-next {
+.pass-next,
+.pass-meta {
   grid-column: 2 / -1;
-  grid-row: 2;
+  display: grid;
+  grid-template-columns: subgrid;
+  gap: 8px;
+}
+.pass-next { grid-row: 2; }
+.pass-meta { grid-row: 3; }
+
+.contract-launch {
+  grid-column: 1;
+  grid-row: 3;
+  align-self: end;
+  justify-self: stretch;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.25;
+}
+.contract-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px 20px;
+}
+.contract-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.contract-head h2 { font-size: 22px; }
+.contract-kind { position: relative; margin-left: auto; }
+.contract-kind-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.contract-kind-btn::after {
+  content: " ▾";
+  color: var(--muted);
+}
+.contract-kind-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 6;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e3edf5;
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(20, 40, 60, 0.14);
+  overflow: hidden;
+}
+.contract-kind-menu button {
+  border: 0;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.contract-kind-menu button:hover { background: #f4f8fb; }
+.contract-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+.contract-cards .edit-card.editing .edit-view {
+  display: none;
+  visibility: visible;
+}
+.contract-cards .edit-card.editing .edit-box {
+  position: static;
+  display: block;
+}
+.contract-cards .edit-box input {
+  width: 100%;
+  height: auto;
+  flex: none;
+}
+.contract-make {
+  justify-self: start;
+  margin-top: 4px;
+}
+.contract-line {
+  background: #fff;
+  border: 1px solid #e3edf5;
+  border-radius: 12px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+.contract-line span {
+  display: block;
+  color: #6b7c8a;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.contract-line strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .pass-role {
@@ -910,6 +1108,115 @@ button.danger {
   align-content: start;
 }
 
+.docs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.doc-slot {
+  background: #fff;
+  border: 1px dashed #c5d4e2;
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.doc-slot > span {
+  color: #6b7c8a;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.doc-name {
+  margin: 0;
+  color: #243140;
+  font-size: 12px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.doc-empty {
+  display: grid;
+  place-items: center;
+  height: 58px;
+  border-radius: 8px;
+  background: #eef3f8;
+  color: #8aa;
+  font-size: 13px;
+  font-weight: 650;
+}
+.doc-open {
+  height: 58px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #eef3f8;
+  cursor: zoom-in;
+}
+.doc-open img,
+.doc-open iframe {
+  width: 100%;
+  height: 58px;
+  border: 0;
+  display: block;
+  pointer-events: none;
+  object-fit: cover;
+  background: #fff;
+  opacity: 0.12;
+  filter: blur(3px);
+}
+.lightbox iframe {
+  width: min(920px, 94vw);
+  height: min(86vh, 900px);
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+}
+.doc-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+label.doc-pick,
+a.doc-save,
+button.doc-clear {
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  line-height: 0;
+}
+label.doc-pick {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+}
+a.doc-save {
+  background: #fff;
+  color: #1b2430;
+  border: 1px solid var(--line);
+  text-decoration: none;
+}
+button.doc-clear {
+  background: #fff;
+  color: #9f2d2d;
+  border: 1px solid #e7c4c4;
+}
+.doc-actions svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .pass-field {
   background: #fff;
   border: 1px solid #e3edf5;
@@ -939,14 +1246,91 @@ button.danger {
   overflow-wrap: anywhere;
 }
 
+.pass-next .pass-field,
+.pass-meta .pass-field {
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: #f4f8fb;
+  border-color: #d7e4ef;
+}
+.pass-next .pass-field span,
+.pass-meta .pass-field span {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+.pass-next .pass-field strong,
+.pass-meta .pass-field strong {
+  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
 .pass-field.wide { grid-column: span 1; }
 
 .edit-box { display: none; }
 .pass-field.editing { cursor: default; }
 .pass-field.editing .edit-view { display: none; }
 .pass-field.editing .edit-box { display: block; }
-.edit-card { cursor: pointer; }
-.edit-box input, .edit-box textarea { padding: 6px 8px; width: 100%; }
+.edit-card { cursor: pointer; position: relative; }
+.edit-box input, .edit-box textarea {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.edit-card.editing:not([data-edit="interviewStatus"]):not([data-edit="note"]) .edit-view {
+  display: block;
+  visibility: hidden;
+}
+.edit-card.editing:not([data-edit="interviewStatus"]):not([data-edit="note"]) .edit-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  margin: 0;
+}
+.edit-card.editing:not([data-edit="interviewStatus"]):not([data-edit="note"]) .edit-box input {
+  width: 0;
+  flex: 1 1 auto;
+  height: 26px;
+}
+.contract-cards .edit-card.editing .edit-view {
+  display: none;
+  visibility: visible;
+}
+.contract-cards .edit-card.editing .edit-box {
+  position: static;
+  display: block;
+  left: auto;
+  right: auto;
+  bottom: auto;
+}
+.contract-cards .edit-card.editing .edit-box input {
+  width: 100%;
+  height: auto;
+  flex: none;
+}
+.hire-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.contract-cards .edit-card.editing .edit-box .hire-date input[name="hiredAt"] {
+  width: auto;
+  flex: 1;
+}
+.contract-cards .edit-card.editing .edit-box .hire-cal {
+  width: 36px;
+  height: 32px;
+  flex: none;
+  padding: 2px;
+}
 .edit-box textarea { min-height: 110px; resize: vertical; }
 .pass > .edit-card[data-edit="note"] {
   width: 100%;
@@ -954,6 +1338,10 @@ button.danger {
 .pass > .edit-card[data-edit="note"] .edit-box textarea,
 .pass > .edit-card[data-edit="note"] .edit-view {
   min-height: 72px;
+}
+.pass > .edit-card[data-edit="note"] .edit-box textarea {
+  width: 100%;
+  padding: 6px 8px;
 }
 .edit-card[data-edit="interviewStatus"] { position: relative; overflow: visible; }
 .edit-card[data-edit="interviewStatus"].editing .edit-view { display: block; }
@@ -1011,9 +1399,13 @@ button.danger {
 .edit-card.tone-hired .edit-view { color: #fff; }
 
 .card-save {
-  margin-top: 6px;
-  padding: 6px 10px;
-  width: 100%;
+  margin: 0;
+  width: auto;
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 dialog::backdrop { background: rgba(28, 25, 21, 0.48); }
@@ -1058,6 +1450,7 @@ dialog::backdrop { background: rgba(28, 25, 21, 0.48); }
   .pass { grid-template-columns: 130px 1fr; }
   .pass-grid { grid-template-columns: 1fr 1fr; overflow: auto; }
   button.photo-open, button.photo-open img, .pass-empty { width: 112px; height: 146px; }
+  .photo-frame { width: 112px; }
   .pass-name { font-size: 20px; }
   .id-logo { font-size: 24px; }
   .id-title { font-size: 12px; }
