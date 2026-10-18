@@ -12,6 +12,7 @@ import {
   deleteStaff,
   ensureDefaultAdmin,
   getApplicationById,
+  markApplicationSeen,
   getApplicationPhoto,
   getApplicationFile,
   saveApplicationFile,
@@ -37,6 +38,18 @@ function requireAuth(req, res, next) {
 function requireAdmin(req, res, next) {
   if (req.session?.user?.role === "admin") return next();
   return res.status(403).json({ error: "Bu bo‘lim faqat admin uchun" });
+}
+
+function requireEdit(req, res, next) {
+  const user = req.session?.user;
+  if (user?.role === "admin" || user?.canEdit) return next();
+  return res.status(403).json({ error: "O‘zgartirishga ruxsat yo‘q" });
+}
+
+function requireDelete(req, res, next) {
+  const user = req.session?.user;
+  if (user?.role === "admin" || user?.canDelete) return next();
+  return res.status(403).json({ error: "O‘chirishga ruxsat yo‘q" });
 }
 
 function actorOf(req) {
@@ -249,7 +262,7 @@ export async function startWeb() {
     res.json({ ok: true });
   });
 
-  app.post("/api/applications/import", requireAuth, async (req, res) => {
+  app.post("/api/applications/import", requireAuth, requireEdit, async (req, res) => {
     const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
     if (!rows.length) return res.status(400).json({ error: "Faylda ariza topilmadi" });
     const result = await importApplications(rows);
@@ -285,7 +298,7 @@ export async function startWeb() {
     res.json({ item });
   });
 
-  app.patch("/api/applications/:id", requireAuth, async (req, res) => {
+  app.patch("/api/applications/:id", requireAuth, requireEdit, async (req, res) => {
     try {
       const before = await getApplicationById(req.params.id);
       const item = await updateApplicationReview(req.params.id, req.body || {}, req.session.user);
@@ -304,13 +317,13 @@ export async function startWeb() {
     }
   });
 
-  app.delete("/api/applications/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.delete("/api/applications/:id", requireAuth, requireDelete, async (req, res) => {
     const before = await getApplicationById(req.params.id);
     const item = await deleteApplication(req.params.id);
     if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
     await recordActivity({
       actor: actorOf(req),
-      action: "Arxivga o‘tkazdi",
+      action: item.purged ? "Arxivdan o‘chirdi" : "Arxivga o‘tkazdi",
       detail: [before?.fullName, before?.position].filter(Boolean).join(", ") || "Ariza",
     });
     res.json({ ok: true });
@@ -336,6 +349,8 @@ export async function startWeb() {
         action: "Arizani ochdi",
         detail: [item.fullName, item.position].filter(Boolean).join(", "),
       });
+      const seen = await markApplicationSeen(req.params.id);
+      if (seen?.seenAt) item.seenAt = seen.seenAt;
     }
     res.json({ item });
   });
@@ -365,6 +380,7 @@ export async function startWeb() {
   app.put(
     "/api/applications/:id/docs/:slot",
     requireAuth,
+    requireEdit,
     express.raw({ type: () => true, limit: "15mb" }),
     async (req, res) => {
       const meta = DOC_SLOTS[req.params.slot];
@@ -394,7 +410,7 @@ export async function startWeb() {
     },
   );
 
-  app.delete("/api/applications/:id/docs/:slot", requireAuth, async (req, res) => {
+  app.delete("/api/applications/:id/docs/:slot", requireAuth, requireEdit, async (req, res) => {
     const meta = DOC_SLOTS[req.params.slot];
     if (!meta) return res.status(404).json({ error: "Hujjat turi topilmadi" });
     const item = await clearApplicationFile(req.params.id, req.params.slot);

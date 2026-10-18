@@ -3,6 +3,7 @@ const appView = document.querySelector("#app-view");
 const loginForm = document.querySelector("#login-form");
 const loginError = document.querySelector("#login-error");
 const listEl = document.querySelector("#list");
+const directionsEl = document.querySelector("#directions");
 const searchEl = document.querySelector("#search");
 const positionEl = document.querySelector("#position-filter");
 const statusEl = document.querySelector("#status-filter");
@@ -46,6 +47,14 @@ let activePosition = "";
 let activeStatus = "";
 let activeSort = "position";
 let archiveMode = false;
+
+function canChange() {
+  return currentUser?.role === "admin" || Boolean(currentUser?.canEdit);
+}
+
+function canRemove() {
+  return currentUser?.role === "admin" || Boolean(currentUser?.canDelete);
+}
 
 function esc(value) {
   return String(value ?? "")
@@ -476,11 +485,12 @@ function heartHtml(item) {
 
 function cardActions(item) {
   const heart = heartHtml(item);
-  if (currentUser?.role !== "admin") return heart;
-  const action = archiveMode
+  if (!canRemove()) return heart;
+  const trash = `<span class="card-act" data-${archiveMode ? "purge" : "archive"}="${esc(item._id)}" role="button" aria-label="${archiveMode ? "O‘chirish" : "Arxivga o‘tkazish"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></span>`;
+  const restore = archiveMode
     ? `<span class="card-act restore" data-restore="${esc(item._id)}" role="button" aria-label="Arxivdan chiqarish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v5h16v-5M12 16V4M8 8l4-4 4 4"/></svg></span>`
-    : `<span class="card-act" data-archive="${esc(item._id)}" role="button" aria-label="Arxivga o‘tkazish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></span>`;
-  return `<span class="card-acts">${action}${heart}</span>`;
+    : "";
+  return `<span class="card-acts">${trash}${restore}${heart}</span>`;
 }
 
 function cardHtml(item) {
@@ -489,11 +499,11 @@ function cardHtml(item) {
     ? `<img class="id-photo" src="/api/applications/${esc(item._id)}/photo" alt="" />`
     : `<span class="id-photo id-photo-empty">Rasm yo‘q</span>`;
   return `
-    <button class="idcard${currentUser?.role === "admin" ? " has-act" : ""}" type="button" data-id="${esc(item._id)}">
+    <button class="idcard${item.seenAt ? "" : " is-new"}${canRemove() ? " has-act" : ""}${archiveMode && currentUser?.role === "admin" ? " wide-acts" : ""}" type="button" data-id="${esc(item._id)}">
       ${cardActions(item)}
       <div class="id-head">
         <span class="id-logo">QABUL</span>
-        <span class="id-title tone-${interviewKey(item.interviewStatus)}">ARIZA KARTASI<span class="id-added">${esc(formatDate(item.createdAt) || "—")}</span></span>
+        <span class="id-title tone-${interviewKey(item.interviewStatus)}">${item.seenAt ? "" : `<span class="id-new">Yangi</span>`}<span class="id-person">${esc(item.fullName || "Ariza")}</span><span class="id-added">${esc(formatDate(item.createdAt) || "—")}</span></span>
       </div>
       <div class="id-main">
         ${photo}
@@ -537,6 +547,7 @@ function render() {
   }
 
   const directions = groupOrder(found).filter((name) => counts.get(name));
+  if (counts.get("Yo‘nalishsiz")) directions.push("Yo‘nalishsiz");
   const directionCount = new Set(allItems.map((item) => item.position).filter(Boolean)).size;
   const latest = allItems[0] ? formatDate(allItems[0].createdAt) : "—";
   const totalLabel = archiveMode ? "Arxivdagi ariza" : "Jami ariza";
@@ -579,10 +590,19 @@ function render() {
   );
 
   let visible = activePosition
-    ? found.filter((item) => item.position === activePosition)
+    ? found.filter((item) => (item.position || "Yo‘nalishsiz") === activePosition)
     : found;
   if (activeSort === "favorite") visible = visible.filter((item) => item.favorite);
   const sort = activeSort;
+
+  directionsEl.classList.remove("tiles");
+  directionsEl.innerHTML = [
+    `<button type="button" class="direction-chip${activePosition ? "" : " on"}" data-position="">Barchasi <b>${found.length}</b></button>`,
+    ...directions.map(
+      (name) =>
+        `<button type="button" class="direction-chip${activePosition === name ? " on" : ""}" data-position="${esc(name)}">${esc(name)} <b>${counts.get(name) || 0}</b></button>`,
+    ),
+  ].join("");
 
   if (!visible.length) {
     listEl.innerHTML = archiveMode
@@ -591,29 +611,9 @@ function render() {
     return;
   }
 
-  if (sort === "position" && !activePosition) {
-    listEl.innerHTML = directions
-      .map((name) => {
-        const cards = visible
-          .filter((item) => (item.position || "Yo‘nalishsiz") === name)
-          .sort(byDate("newest"))
-          .map(cardHtml)
-          .join("");
-        return `
-          <section class="group">
-            <div class="group-head">
-              <h2>${esc(name)}</h2>
-              <span class="badge">${counts.get(name)} ta</span>
-            </div>
-            <div class="cards">${cards}</div>
-          </section>`;
-      })
-      .join("");
-    return;
-  }
-
   if (sort === "name") visible = [...visible].sort(byName);
-  else visible = [...visible].sort(byDate(sort === "oldest" ? "oldest" : "newest"));
+  else if (sort === "oldest") visible = [...visible].sort(byDate("oldest"));
+  else visible = [...visible].sort(byDate("newest"));
 
   const title = activePosition
     || (sort === "favorite" ? "Izbranniy" : sort === "all" ? "Barchasi" : sort === "name" ? "Ism bo‘yicha" : sort === "oldest" ? "Eskisidan" : sort === "newest" ? "Yangisidan" : "Sana bo‘yicha");
@@ -642,6 +642,7 @@ async function openDetail(id, silent = false) {
   const { item } = await res.json();
   const index = allItems.findIndex((entry) => entry._id === id);
   if (index >= 0) allItems[index] = { ...allItems[index], ...item };
+  if (!silent && item.seenAt) render();
   detailTitle.textContent = item.fullName || "Ariza";
   detailPosition.textContent = item.position || "Yo‘nalishsiz";
 
@@ -965,6 +966,7 @@ async function openDetail(id, silent = false) {
 
   detailBody.querySelectorAll(".edit-card").forEach((card) => {
     card.addEventListener("click", (event) => {
+      if (!canChange()) return;
       if (event.target.closest(".edit-box")) return;
       if (card.classList.contains("editing")) return;
       detailBody.querySelectorAll(".edit-card.editing").forEach((other) => other.classList.remove("editing"));
@@ -1014,6 +1016,7 @@ async function openDetail(id, silent = false) {
   detailBody.querySelectorAll(".doc-slot").forEach((slot) => {
     const kind = slot.dataset.doc;
     slot.querySelector("input")?.addEventListener("change", async (event) => {
+      if (!canChange()) return;
       const file = event.target.files?.[0];
       event.target.value = "";
       if (!file) return;
@@ -1038,6 +1041,7 @@ async function openDetail(id, silent = false) {
       await openDetail(id, true);
     });
     slot.querySelector(".doc-clear")?.addEventListener("click", async () => {
+      if (!canChange()) return;
       if (!confirm("Aniq shu rasmni o‘chirayveraymi?")) return;
       const res = await fetch(`/api/applications/${id}/docs/${kind}`, { method: "DELETE" });
       if (!res.ok) return;
@@ -1099,6 +1103,7 @@ async function openDetail(id, silent = false) {
     await openDetail(id, true);
   });
   detailBody.querySelector("#doc-lightbox-clear")?.addEventListener("click", async () => {
+    if (!canChange()) return;
     const kind = detailBody.querySelector("#doc-lightbox")?.dataset.slot;
     if (!kind) return;
     if (!confirm("Aniq shu rasmni o‘chirayveraymi?")) return;
@@ -1124,6 +1129,7 @@ async function openDetail(id, silent = false) {
   kindMenu?.querySelectorAll("[data-kind]").forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
+      if (!canChange()) return;
       draft.contractKind = button.dataset.kind === "admin" ? "admin" : "teacher";
       if (kindToggle) kindToggle.textContent = button.textContent;
       kindMenu.classList.add("hidden");
@@ -1155,8 +1161,7 @@ async function openDetail(id, silent = false) {
   });
   document.querySelector("#header-delete")?.remove();
   document.querySelector("#header-restore")?.remove();
-  if (currentUser?.role !== "admin") return;
-  if (item.archived) {
+  if (item.archived && currentUser?.role === "admin") {
     const restoreButton = document.createElement("button");
     restoreButton.id = "header-restore";
     restoreButton.type = "button";
@@ -1171,22 +1176,18 @@ async function openDetail(id, silent = false) {
       detail.close();
       render();
     });
-    return;
   }
+  if (!canRemove()) return;
   const deleteButton = document.createElement("button");
   deleteButton.id = "header-delete";
   deleteButton.type = "button";
   deleteButton.className = "icon-btn danger";
-  deleteButton.setAttribute("aria-label", "Arxivga o‘tkazish");
+  deleteButton.setAttribute("aria-label", item.archived ? "O‘chirish" : "Arxivga o‘tkazish");
   deleteButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>`;
   document.querySelector("#close-detail").before(deleteButton);
-  deleteButton.addEventListener("click", async () => {
-    if (!confirm("Bu ariza arxivga o‘tkazilsinmi?")) return;
-    const res = await fetch(`/api/applications/${id}`, { method: "DELETE" });
-    if (!res.ok) return;
-    allItems = allItems.filter((entry) => entry._id !== id);
-    detail.close();
-    render();
+  deleteButton.addEventListener("click", () => {
+    if (item.archived) purgeFromArchive(id);
+    else moveToArchive(id);
   });
 }
 
@@ -1437,6 +1438,12 @@ positionEl.addEventListener("change", () => {
   activePosition = positionEl.value;
   render();
 });
+directionsEl.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-position]");
+  if (!button) return;
+  activePosition = button.dataset.position;
+  render();
+});
 statusEl.addEventListener("change", () => {
   activeStatus = statusEl.value;
   render();
@@ -1447,6 +1454,13 @@ listEl.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     moveToArchive(archiveBtn.dataset.archive);
+    return;
+  }
+  const purgeBtn = event.target.closest("[data-purge]");
+  if (purgeBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    purgeFromArchive(purgeBtn.dataset.purge);
     return;
   }
   const restoreBtn = event.target.closest("[data-restore]");
@@ -1478,6 +1492,16 @@ async function moveToArchive(id) {
   if (!res.ok) return;
   allItems = allItems.filter((entry) => entry._id !== id);
   closeDetailIf(id);
+  render();
+}
+
+async function purgeFromArchive(id) {
+  if (!confirm("Bu ariza arxivdan butunlay o‘chirilsinmi?")) return;
+  const res = await fetch(`/api/applications/${id}`, { method: "DELETE" });
+  if (!res.ok) return;
+  allItems = allItems.filter((entry) => entry._id !== id);
+  closeDetailIf(id);
+  if (detail.open) detail.close();
   render();
 }
 
@@ -1526,10 +1550,10 @@ async function loadStaff() {
       <div class="staff-row">
         <div>
           <p><strong>${esc(person.surname)} ${esc(person.name)}</strong></p>
-          <p class="muted">${esc(person.username)} · ${person.role === "admin" ? "Admin" : "Hodim"}</p>
+          <p class="muted">${esc(person.username)} · ${person.role === "admin" ? "Admin" : `Xodim · ${[person.canEdit ? "o‘zgartirish" : "", person.canDelete ? "o‘chirish" : ""].filter(Boolean).join(", ") || "faqat ko‘rish"}`}</p>
         </div>
         <div class="staff-actions">
-          <button type="button" class="ghost" data-edit-staff="${esc(person.id)}" data-surname="${esc(person.surname)}" data-name="${esc(person.name)}" data-username="${esc(person.username)}">Tahrirlash</button>
+          <button type="button" class="ghost" data-edit-staff="${esc(person.id)}" data-role="${esc(person.role)}" data-edit="${person.canEdit ? "1" : "0"}" data-remove="${person.canDelete ? "1" : "0"}" data-surname="${esc(person.surname)}" data-name="${esc(person.name)}" data-username="${esc(person.username)}">Tahrirlash</button>
           ${person.role === "admin" ? "" : `<button type="button" class="danger" data-delete-staff="${esc(person.id)}">O‘chirish</button>`}
         </div>
       </div>`,
@@ -1537,10 +1561,17 @@ async function loadStaff() {
     .join("");
 }
 
+function syncStaffPerms() {
+  const show = staffForm.elements.role.value !== "admin";
+  document.querySelector("#staff-perms").classList.toggle("hidden", !show);
+}
+staffForm.elements.role.addEventListener("change", syncStaffPerms);
+
 document.querySelector("#open-staff").addEventListener("click", async () => {
   document.querySelector(".account").classList.remove("open");
   staffError.textContent = "";
   staffForm.reset();
+  syncStaffPerms();
   await loadStaff();
   staffDialog.showModal();
 });
@@ -1586,6 +1617,8 @@ staffForm.addEventListener("submit", async (event) => {
   const id = body.id;
   delete body.id;
   if (!body.password) delete body.password;
+  body.canEdit = Boolean(staffForm.elements.canEdit.checked);
+  body.canDelete = Boolean(staffForm.elements.canDelete.checked);
   const res = await fetch(id ? `/api/staff/${id}` : "/api/staff", {
     method: id ? "PATCH" : "POST",
     headers: { "Content-Type": "application/json" },
@@ -1611,7 +1644,11 @@ staffList.addEventListener("click", async (event) => {
     staffForm.elements.surname.value = edit.dataset.surname;
     staffForm.elements.name.value = edit.dataset.name;
     staffForm.elements.username.value = edit.dataset.username;
+    staffForm.elements.role.value = edit.dataset.role === "admin" ? "admin" : "staff";
+    staffForm.elements.canEdit.checked = edit.dataset.edit === "1";
+    staffForm.elements.canDelete.checked = edit.dataset.remove === "1";
     staffForm.elements.password.value = "";
+    syncStaffPerms();
     return;
   }
   const remove = event.target.closest("[data-delete-staff]");

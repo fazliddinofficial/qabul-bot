@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Qabul paneli</title>
-    <link rel="stylesheet" href="/styles.css?v=4" />
+    <link rel="stylesheet" href="/styles.css?v=10" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -74,7 +74,7 @@
       </section>
 
       <div class="filters">
-        <label>
+        <label class="hidden">
           Yo‘nalish
           <select id="position-filter"></select>
         </label>
@@ -94,6 +94,7 @@
           </select>
         </label>
       </div>
+      <div id="directions" class="directions tiles"></div>
       <section id="list" class="groups"></section>
     </main>
 
@@ -123,6 +124,24 @@
           Parol
           <input name="password" type="password" autocomplete="new-password" placeholder="Yangi hodim uchun majburiy" />
         </label>
+        <label>
+          Rol
+          <select name="role">
+            <option value="staff">Xodim</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <fieldset id="staff-perms" class="perms">
+          <legend>Nimalar mumkin</legend>
+          <label class="check">
+            <input type="checkbox" name="canEdit" />
+            O‘zgartirish
+          </label>
+          <label class="check">
+            <input type="checkbox" name="canDelete" />
+            O‘chirish
+          </label>
+        </fieldset>
         <p id="staff-error" class="error"></p>
         <button type="submit">Saqlash</button>
       </form>
@@ -159,6 +178,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js?v=4"></script>
+    <script type="module" src="/app.js?v=10"></script>
   </body>
 </html>
