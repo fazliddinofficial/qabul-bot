@@ -17,33 +17,64 @@ dotenv();
 const token = process.env.BOT_TOKEN;
 const CHANNEL_OR_GROUP_TOKEN = process.env.CHANNEL_OR_GROUP_TOKEN;
 
+// Ulanishlar qayta ishlatiladi: har javob uchun yangi TLS ulanish ochilmaydi (tezroq).
+// Eskirgan ulanishdan chiqadigan ECONNRESET quyidagi qayta urinish bilan yopiladi.
 const bot = new Telegraf(token, {
   telegram: {
-    agent: new https.Agent({ keepAlive: false }),
+    agent: new https.Agent({ keepAlive: true, keepAliveMsecs: 15000, maxSockets: 25 }),
   },
 });
 
+// Telegraf har so'rovga 500 000 ms (8+ daqiqa) kutadi. Telegram bilan aloqa osilib qolsa,
+// bot shuncha vaqt "qotib" turardi. Endi so'rov chegaralangan va vaqti o'tsa qayta yuboriladi.
+function callTimeoutMs(method) {
+  return method === "getUpdates" ? 65000 : 20000;
+}
+
 const originalCallApi = bot.telegram.callApi.bind(bot.telegram);
-bot.telegram.callApi = async (method, payload, options) => {
+bot.telegram.callApi = async (method, payload, options = {}) => {
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const timeoutSignal = AbortSignal.timeout(callTimeoutMs(method));
+    const signal = options.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal;
     try {
-      return await originalCallApi(method, payload, options);
+      return await originalCallApi(method, payload, { ...options, signal });
     } catch (error) {
       lastError = error;
+      // Bot to'xtatilayotgan bo'lsa (tashqi signal) — qayta urinmaymiz
+      if (options.signal?.aborted) throw error;
+      const timedOut = error?.name === "AbortError" && timeoutSignal.aborted;
       const message = `${error?.message || ""} ${error?.cause?.message || ""} ${error?.code || ""}`;
       const status = error?.response?.error_code;
       const transient =
+        timedOut ||
         status === 429 ||
         status >= 500 ||
         /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|FetchError|network|failed, reason|EPIPE|UND_ERR/i.test(message);
-      if (!transient || attempt === 3 || error?.name === "AbortError") throw error;
-      console.error(`${method} qayta uriniladi (${attempt}/3):`, message);
+      if (!transient || attempt === 3) throw error;
+      console.error(`${method} qayta uriniladi (${attempt}/3):`, timedOut ? "javob kelmadi (vaqt tugadi)" : message);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }
   }
   throw lastError;
 };
+
+// Telegraf bir guruh xabarni to'liq qayta ishlamaguncha keyingilarini olmaydi — bitta
+// sekin foydalanuvchi (masalan, anketani yuborayotgan) hammani kutdirardi.
+// Endi har bir foydalanuvchining xabarlari o'z navbatida, boshqalarni to'xtatmay bajariladi.
+const userQueues = new Map();
+bot.use((ctx, next) => {
+  const key = ctx.from?.id ?? ctx.chat?.id ?? "umumiy";
+  const previous = userQueues.get(key) || Promise.resolve();
+  const run = previous
+    .then(() => next())
+    .catch((error) => console.error("Bot xatosi, ishlashda davom etadi:", error?.message || error));
+  userQueues.set(key, run);
+  run.finally(() => {
+    if (userQueues.get(key) === run) userQueues.delete(key);
+  });
+  // ataylab kutmaymiz: polling darhol keyingi xabarlarni oladi
+});
 
 const sessions = new Map();
 
