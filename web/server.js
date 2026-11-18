@@ -220,12 +220,12 @@ export async function startWeb() {
       const item = await createStaff(req.body || {});
       await recordActivity({
         actor: actorOf(req),
-        action: "Hodim qo‘shdi",
+        action: "Xodim qo‘shdi",
         detail: `${item.surname} ${item.name}, login: ${item.username}`,
       });
       res.json({ item });
     } catch (error) {
-      res.status(error.status || 500).json({ error: error.message || "Hodim qo‘shilmadi" });
+      res.status(error.status || 500).json({ error: error.message || "Xodim qo‘shilmadi" });
     }
   });
 
@@ -233,7 +233,7 @@ export async function startWeb() {
     try {
       const before = (await listStaff()).find((person) => person.id === req.params.id);
       const item = await updateStaff(req.params.id, req.body || {});
-      if (!item) return res.status(404).json({ error: "Hodim topilmadi" });
+      if (!item) return res.status(404).json({ error: "Xodim topilmadi" });
       if (req.session.user?.id === item.id) req.session.user = item;
       const parts = [];
       if (before && `${before.surname} ${before.name}` !== `${item.surname} ${item.name}`) {
@@ -243,12 +243,12 @@ export async function startWeb() {
       if (req.body?.password) parts.push("Parol yangilandi");
       await recordActivity({
         actor: actorOf(req),
-        action: "Hodimni tahrirladi",
+        action: "Xodimni tahrirladi",
         detail: [`${item.surname} ${item.name}`, ...parts].filter(Boolean).join(". "),
       });
       res.json({ item });
     } catch (error) {
-      res.status(error.status || 500).json({ error: error.message || "Hodim yangilanmadi" });
+      res.status(error.status || 500).json({ error: error.message || "Xodim yangilanmadi" });
     }
   });
 
@@ -257,10 +257,10 @@ export async function startWeb() {
       return res.status(400).json({ error: "O‘zingizni o‘chirib bo‘lmaydi" });
     }
     const item = await deleteStaff(req.params.id);
-    if (!item) return res.status(404).json({ error: "Hodim topilmadi" });
+    if (!item) return res.status(404).json({ error: "Xodim topilmadi" });
     await recordActivity({
       actor: actorOf(req),
-      action: "Hodimni o‘chirdi",
+      action: "Xodimni o‘chirdi",
       detail: `${item.surname} ${item.name}, login: ${item.username}`,
     });
     res.json({ ok: true });

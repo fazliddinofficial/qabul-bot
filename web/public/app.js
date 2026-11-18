@@ -2077,38 +2077,110 @@ const staffForm = document.querySelector("#staff-form");
 const staffList = document.querySelector("#staff-list");
 const staffError = document.querySelector("#staff-error");
 
+const ICONS = {
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+  trash: '<path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
+  login: '<path d="M10 17l5-5-5-5M15 12H4M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/>',
+  logout: '<path d="M15 5h3a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h10"/>',
+  alert: '<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>',
+  star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6z"/>',
+  restore: '<path d="M4 14v5h16v-5M12 16V4M8 8l4-4 4 4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  file: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/>',
+  swap: '<path d="M7 7h12l-3-3M17 17H5l3 3"/>',
+  heart: '<path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/>',
+  users: '<circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/>',
+  dot: '<circle cx="12" cy="12" r="3"/>',
+};
+const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ICONS.dot}</svg>`;
+
+function nameHue(text) {
+  let hash = 0;
+  for (const ch of String(text || "")) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return hash;
+}
+
+function initialsOf(text) {
+  return String(text || "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "?";
+}
+
 async function loadStaff() {
   const res = await fetch("/api/staff");
   if (!res.ok) return;
   const data = await res.json();
-  staffList.innerHTML = data.items
-    .map(
-      (person) => `
-      <div class="staff-row">
-        <div>
-          <p><strong>${esc(person.surname)} ${esc(person.name)}</strong></p>
-          <p class="muted">${esc(person.username)} · ${person.role === "admin" ? "Admin" : `Xodim · ${[person.canEdit ? "o‘zgartirish" : "", person.canDelete ? "o‘chirish" : ""].filter(Boolean).join(", ") || "faqat ko‘rish"}`}</p>
+  const items = data.items || [];
+  document.querySelector("#staff-count").textContent = `${items.length} ta`;
+  staffList.innerHTML = items
+    .map((person) => {
+      const full = `${person.surname} ${person.name}`.trim();
+      const admin = person.role === "admin";
+      const perms = admin
+        ? `<span class="perm-chip" style="--pc:#8b5cf6">${icon("star")}Hamma narsa</span>`
+        : [
+            `<span class="perm-chip" style="--pc:#10b981">${icon("eye")}Ko‘radi</span>`,
+            person.canEdit ? `<span class="perm-chip" style="--pc:#f59e0b">${icon("pencil")}O‘zgartiradi</span>` : "",
+            person.canDelete ? `<span class="perm-chip" style="--pc:#ef4444">${icon("trash")}O‘chiradi</span>` : "",
+          ].join("");
+      const me = currentUser?.id === person.id ? `<span class="me-pill">Siz</span>` : "";
+      return `
+      <div class="staff-card">
+        <span class="avatar" style="--h:${nameHue(full)}">${esc(initialsOf(full))}</span>
+        <div class="staff-main">
+          <div class="staff-name"><strong>${esc(full || person.username)}</strong>${me}</div>
+          <div class="staff-meta">
+            <span class="role-pill ${admin ? "is-admin" : ""}">${admin ? "Admin" : "Xodim"}</span>
+            <span class="muted">@${esc(person.username)}</span>
+          </div>
+          <div class="perm-chips">${perms}</div>
         </div>
         <div class="staff-actions">
-          <button type="button" class="ghost" data-edit-staff="${esc(person.id)}" data-role="${esc(person.role)}" data-edit="${person.canEdit ? "1" : "0"}" data-remove="${person.canDelete ? "1" : "0"}" data-surname="${esc(person.surname)}" data-name="${esc(person.name)}" data-username="${esc(person.username)}">Tahrirlash</button>
-          ${person.role === "admin" ? "" : `<button type="button" class="danger" data-delete-staff="${esc(person.id)}">O‘chirish</button>`}
+          <button type="button" class="ac-icon" title="Tahrirlash" aria-label="Tahrirlash" data-edit-staff="${esc(person.id)}" data-role="${esc(person.role)}" data-edit="${person.canEdit ? "1" : "0"}" data-remove="${person.canDelete ? "1" : "0"}" data-surname="${esc(person.surname)}" data-name="${esc(person.name)}" data-username="${esc(person.username)}">${icon("pencil")}</button>
+          ${admin ? "" : `<button type="button" class="ac-icon ac-delete" title="O‘chirish" aria-label="O‘chirish" data-delete-staff="${esc(person.id)}" data-full="${esc(full)}">${icon("trash")}</button>`}
         </div>
-      </div>`,
-    )
-    .join("");
+      </div>`;
+    })
+    .join("") || `<p class="empty">Hozircha xodim yo‘q.</p>`;
 }
 
 function syncStaffPerms() {
-  const show = staffForm.elements.role.value !== "admin";
-  document.querySelector("#staff-perms").classList.toggle("hidden", !show);
+  const role = staffForm.querySelector('input[name="role"]:checked')?.value;
+  document.querySelector("#staff-perms").classList.toggle("hidden", role === "admin");
 }
-staffForm.elements.role.addEventListener("change", syncStaffPerms);
+staffForm.addEventListener("change", (event) => {
+  if (event.target.name === "role") syncStaffPerms();
+});
+
+// Forma ikki holatda: yangi xodim qo'shish yoki mavjudini tahrirlash
+function setStaffMode(editingName) {
+  const editing = Boolean(editingName);
+  document.querySelector("#staff-form-title").textContent = editing ? `Tahrirlash: ${editingName}` : "Yangi xodim qo‘shish";
+  document.querySelector("#staff-submit").textContent = editing ? "O‘zgarishlarni saqlash" : "Xodimni qo‘shish";
+  document.querySelector("#staff-cancel").classList.toggle("hidden", !editing);
+  staffForm.classList.toggle("is-editing", editing);
+  const password = staffForm.elements.password;
+  password.placeholder = editing ? "O‘zgartirmasangiz bo‘sh qoldiring" : "Kamida 4 ta belgi";
+  password.required = !editing;
+}
+
+function resetStaffForm() {
+  staffForm.reset();
+  staffForm.elements.id.value = "";
+  staffError.textContent = "";
+  setStaffMode("");
+  syncStaffPerms();
+}
+
+document.querySelector("#staff-cancel").addEventListener("click", resetStaffForm);
 
 document.querySelector("#open-staff").addEventListener("click", async () => {
   document.querySelector(".account").classList.remove("open");
-  staffError.textContent = "";
-  staffForm.reset();
-  syncStaffPerms();
+  resetStaffForm();
   await loadStaff();
   staffDialog.showModal();
 });
@@ -2117,26 +2189,64 @@ document.querySelector("#close-staff").addEventListener("click", () => staffDial
 const historyDialog = document.querySelector("#history-dialog");
 const historyList = document.querySelector("#history-list");
 
+// Harakat turiga qarab ikonka va rang
+function historyLook(action) {
+  const text = String(action || "").toLowerCase();
+  if (text.includes("muvaffaqiyatsiz")) return ["alert", "#ef4444"];
+  if (text.includes("tizimga kirdi")) return ["login", "#10b981"];
+  if (text.includes("tizimdan chiqdi")) return ["logout", "#94a3b8"];
+  if (text.includes("baho")) return ["star", "#f97316"];
+  if (text.includes("qaytardi")) return ["restore", "#10b981"];
+  if (text.includes("arxiv") || text.includes("o‘chirdi") || text.includes("olib tashladi")) return ["trash", "#ef4444"];
+  if (text.includes("hodim") || text.includes("xodim")) return ["users", "#6366f1"];
+  if (text.includes("hujjat")) return ["file", "#06b6d4"];
+  if (text.includes("import") || text.includes("eksport")) return ["swap", "#8b5cf6"];
+  if (text.includes("sevimli")) return ["heart", "#ec4899"];
+  if (text.includes("ochdi")) return ["eye", "#3b82f6"];
+  if (text.includes("o‘zgartirdi") || text.includes("tahrir")) return ["pencil", "#f59e0b"];
+  if (text.includes("qo‘shdi")) return ["plus", "#10b981"];
+  return ["dot", "#64748b"];
+}
+
+function historyDay(value) {
+  const days = daysAgo(value);
+  if (days <= 0) return "Bugun";
+  if (days === 1) return "Kecha";
+  const label = String(formatDate(value)).split(",")[0];
+  return label || "Sanasiz";
+}
+
 async function loadHistory() {
   const res = await fetch("/api/activity");
   if (!res.ok) return;
   const data = await res.json();
   const items = data.items || [];
-  historyList.innerHTML = items.length
-    ? items
-        .map(
-          (item) => `
-        <article class="history-row">
-          <div class="history-top">
-            <strong>${esc(item.actorName || "Noma’lum")}</strong>
-            <time>${esc(formatDate(item.at) || "—")}</time>
+  if (!items.length) {
+    historyList.innerHTML = `<p class="empty">Hozircha harakat yo‘q.</p>`;
+    return;
+  }
+  let lastDay = "";
+  historyList.innerHTML = items
+    .map((item) => {
+      const day = historyDay(item.at);
+      const head = day !== lastDay ? `<h3 class="history-day">${esc(day)}</h3>` : "";
+      lastDay = day;
+      const [kind, color] = historyLook(item.action);
+      const time = String(formatDate(item.at)).split(", ")[1] || "";
+      return `${head}
+        <article class="history-row" style="--hc:${color}">
+          <span class="history-ico">${icon(kind)}</span>
+          <div class="history-body">
+            <div class="history-top">
+              <strong>${esc(item.action)}</strong>
+              <time>${esc(time)}</time>
+            </div>
+            <p class="history-who"><span class="avatar xs" style="--h:${nameHue(item.actorName)}">${esc(initialsOf(item.actorName))}</span>${esc(item.actorName || "Noma’lum")}</p>
+            ${item.detail ? `<p class="history-detail">${esc(item.detail)}</p>` : ""}
           </div>
-          <p>${esc(item.action)}</p>
-          ${item.detail ? `<p class="muted">${esc(item.detail)}</p>` : ""}
-        </article>`,
-        )
-        .join("")
-    : `<p class="empty">Hozircha harakat yo‘q.</p>`;
+        </article>`;
+    })
+    .join("");
 }
 
 document.querySelector("#open-history").addEventListener("click", async () => {
@@ -2170,7 +2280,7 @@ staffForm.addEventListener("submit", async (event) => {
     currentUser = data.item;
     showApp();
   }
-  staffForm.reset();
+  resetStaffForm();
   await loadStaff();
 });
 
@@ -2185,14 +2295,22 @@ staffList.addEventListener("click", async (event) => {
     staffForm.elements.canEdit.checked = edit.dataset.edit === "1";
     staffForm.elements.canDelete.checked = edit.dataset.remove === "1";
     staffForm.elements.password.value = "";
+    staffError.textContent = "";
+    setStaffMode(`${edit.dataset.surname} ${edit.dataset.name}`.trim());
     syncStaffPerms();
+    staffForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    staffForm.elements.surname.focus();
     return;
   }
   const remove = event.target.closest("[data-delete-staff]");
   if (!remove) return;
-  if (!confirm("Bu hodim o‘chirilsinmi?")) return;
+  if (!confirm(`${remove.dataset.full || "Bu xodim"} o‘chirilsinmi? U endi panelga kira olmaydi.`)) return;
   const res = await fetch(`/api/staff/${remove.dataset.deleteStaff}`, { method: "DELETE" });
-  if (!res.ok) return;
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || "O‘chirilmadi");
+    return;
+  }
   await loadStaff();
 });
 

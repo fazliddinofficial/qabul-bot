@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=14" />
+    <link rel="stylesheet" href="/styles.css?v=15" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -95,7 +95,7 @@
               </button>
               <div class="account-menu">
                 <button id="open-staff" type="button" class="hidden">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/></svg>Hodimlar
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/></svg>Xodimlar
                 </button>
                 <button id="open-history" type="button">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Tarix
@@ -151,65 +151,94 @@
 
     <dialog id="staff-dialog" class="staff-dialog">
       <div class="dialog-head">
-        <div>
-          <p class="eyebrow">Admin</p>
-          <h2>Hodimlar</h2>
+        <div class="dialog-title">
+          <span class="dialog-ico" style="--dc:#6366f1"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/></svg></span>
+          <div>
+            <h2>Xodimlar</h2>
+            <p class="muted">Panelga kim kirishi va nima qila olishi</p>
+          </div>
         </div>
-        <button id="close-staff" type="button" class="icon-btn" aria-label="Yopish">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
+        <button id="close-staff" type="button" class="icon-btn" aria-label="Yopish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <form id="staff-form" class="staff-form">
         <input type="hidden" name="id" />
-        <label>
-          Familiya
-          <input name="surname" required />
+        <div class="form-title full">
+          <strong id="staff-form-title">Yangi xodim qo‘shish</strong>
+          <button type="button" id="staff-cancel" class="link-btn hidden">Bekor qilish</button>
+        </div>
+        <label class="field">
+          <span>Familiya</span>
+          <input name="surname" required placeholder="Masalan: Karimova" />
         </label>
-        <label>
-          Ism
-          <input name="name" required />
+        <label class="field">
+          <span>Ism</span>
+          <input name="name" required placeholder="Masalan: Madina" />
         </label>
-        <label>
-          Login
-          <input name="username" required autocomplete="off" />
+        <label class="field">
+          <span>Login</span>
+          <input name="username" required autocomplete="off" placeholder="madina" />
         </label>
-        <label>
-          Parol
-          <input name="password" type="password" autocomplete="new-password" placeholder="Yangi hodim uchun majburiy" />
+        <label class="field">
+          <span>Parol</span>
+          <input name="password" type="password" autocomplete="new-password" placeholder="Kamida 4 ta belgi" />
         </label>
-        <label>
-          Rol
-          <select name="role">
-            <option value="staff">Xodim</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
-        <fieldset id="staff-perms" class="perms">
-          <legend>Nimalar mumkin</legend>
-          <label class="check">
-            <input type="checkbox" name="canEdit" />
-            O‘zgartirish
+        <div class="role-pick full">
+          <span class="field-cap">Kim bo‘ladi?</span>
+          <label class="role-opt">
+            <input type="radio" name="role" value="staff" checked />
+            <span class="role-card" style="--rc:#0ea5e9">
+              <i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.3-4 4.3-6 8-6s6.7 2 8 6"/></svg></i>
+              <b>Xodim</b>
+              <small>Faqat siz ruxsat bergan ishlar</small>
+            </span>
           </label>
-          <label class="check">
-            <input type="checkbox" name="canDelete" />
-            O‘chirish
+          <label class="role-opt">
+            <input type="radio" name="role" value="admin" />
+            <span class="role-card" style="--rc:#8b5cf6">
+              <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg></i>
+              <b>Admin</b>
+              <small>Hamma narsa mumkin</small>
+            </span>
           </label>
-        </fieldset>
-        <p id="staff-error" class="error"></p>
-        <button type="submit" class="primary">Saqlash</button>
+        </div>
+        <div id="staff-perms" class="perm-list full">
+          <span class="field-cap">Nima qila oladi?</span>
+          <div class="perm-row" style="--pc:#10b981">
+            <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg></i>
+            <span><b>Ko‘ra oladi</b><small>Arizalarni ko‘rish — har doim yoqilgan</small></span>
+            <span class="perm-always">Doim</span>
+          </div>
+          <label class="perm-row" style="--pc:#f59e0b">
+            <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg></i>
+            <span><b>O‘zgartira oladi</b><small>Tahrirlash, baho qo‘yish, hujjat yuklash</small></span>
+            <input type="checkbox" name="canEdit" class="switch" />
+          </label>
+          <label class="perm-row" style="--pc:#ef4444">
+            <i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></i>
+            <span><b>O‘chira oladi</b><small>Arizani arxivga o‘tkazish</small></span>
+            <input type="checkbox" name="canDelete" class="switch" />
+          </label>
+        </div>
+        <p id="staff-error" class="error full"></p>
+        <button type="submit" id="staff-submit" class="full">Xodimni qo‘shish</button>
       </form>
+      <div class="list-title">
+        <strong>Hamma xodimlar</strong>
+        <span class="badge" id="staff-count"></span>
+      </div>
       <div id="staff-list" class="staff-list"></div>
     </dialog>
 
     <dialog id="history-dialog" class="staff-dialog">
       <div class="dialog-head">
-        <div>
-          <p class="eyebrow">Tarix</p>
-          <h2>Kim nima qilgan</h2>
+        <div class="dialog-title">
+          <span class="dialog-ico" style="--dc:#f59e0b"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+          <div>
+            <h2>Tarix</h2>
+            <p class="muted">Kim, qachon va nima qildi</p>
+          </div>
         </div>
-        <button id="close-history" type="button" class="icon-btn" aria-label="Yopish">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>
+        <button id="close-history" type="button" class="icon-btn" aria-label="Yopish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <div id="history-list" class="history-list"></div>
     </dialog>
@@ -233,6 +262,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js?v=14"></script>
+    <script type="module" src="/app.js?v=15"></script>
   </body>
 </html>
