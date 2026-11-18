@@ -6,6 +6,7 @@ export const POSITION_OPTIONS = {
   korean: "Koreys tili o'qituvchisi",
   german: "Nemis tili o'qituvchisi",
   japanese: "Yapon tili o'qituvchisi",
+  chinese: "Xitoy tili o'qituvchisi",
   arabic: "Arab tili o'qituvchisi",
   turkish: "Turk tili o'qituvchisi",
   motherTongueAndLiterature: "Ona tili va adabiyot o'qituvchisi",
@@ -17,6 +18,8 @@ export const POSITION_OPTIONS = {
   accounting: "Buxgalteriya o'qituvchisi",
   marketing: "SMM va mobilografiya mutaxassis",
   trading: "Treyding o'qituvchisi",
+  mentalArithmetic: "Mental arifmetika o'qituvchisi",
+  otherCourses: "Boshqa kurslar",
 };
 
 export const VALID_POSITIONS = Object.values(POSITION_OPTIONS);
@@ -36,6 +39,7 @@ export const DEPARTMENTS = [
       POSITION_OPTIONS.korean,
       POSITION_OPTIONS.german,
       POSITION_OPTIONS.japanese,
+      POSITION_OPTIONS.chinese,
       POSITION_OPTIONS.arabic,
       POSITION_OPTIONS.turkish,
     ],
@@ -50,6 +54,8 @@ export const DEPARTMENTS = [
       POSITION_OPTIONS.webDevelopment,
       POSITION_OPTIONS.graphicDesign,
       POSITION_OPTIONS.accounting,
+      POSITION_OPTIONS.mentalArithmetic,
+      POSITION_OPTIONS.otherCourses,
     ],
   },
   {

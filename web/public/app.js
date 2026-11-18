@@ -31,7 +31,7 @@ const labels = {
   nation: "Millati",
   address: "Manzil",
   phone: "Telefon",
-  parentPhone: "Ota-ona telefoni",
+  parentPhone: "Qo'shimcha yoki ota-ona telefoni",
   education: "Ma’lumot",
   institution: "O‘quv muassasasi",
   graduationYear: "Tugatish yili",
@@ -55,6 +55,15 @@ let knownPositions = [];
 let activePosition = "";
 let activeStatus = "";
 let activeSort = "newest";
+let archiveMode = false;
+
+function canChange() {
+  return currentUser?.role === "admin" || Boolean(currentUser?.canEdit);
+}
+
+function canRemove() {
+  return currentUser?.role === "admin" || Boolean(currentUser?.canDelete);
+}
 
 function esc(value) {
   return String(value ?? "")
@@ -574,6 +583,16 @@ function hasScore(item) {
   return item.assessmentScore != null || (item.score !== null && item.score !== undefined && item.score !== "");
 }
 
+function cardActions(item) {
+  const heart = heartHtml(item);
+  if (!canRemove()) return heart;
+  const trash = `<span class="ac-icon ac-delete" data-${archiveMode ? "purge" : "archive"}="${esc(item._id)}" role="button" aria-label="${archiveMode ? "Butunlay o‘chirish" : "Arxivga o‘tkazish"}" title="${archiveMode ? "Butunlay o‘chirish" : "Arxivga o‘tkazish"}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></span>`;
+  const restore = archiveMode && currentUser?.role === "admin"
+    ? `<span class="ac-icon ac-restore" data-restore="${esc(item._id)}" role="button" aria-label="Arxivdan qaytarish" title="Arxivdan qaytarish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v5h16v-5M12 16V4M8 8l4-4 4 4"/></svg></span>`
+    : "";
+  return `${restore}${trash}${heart}`;
+}
+
 function cardHtml(item) {
   const person = splitName(item.fullName);
   const tone = interviewKey(item.interviewStatus);
@@ -593,9 +612,6 @@ function cardHtml(item) {
         <span class="ac-v">${html || esc(value || "—")}</span>
       </span>
     </div>`;
-  const remove = currentUser?.role === "admin"
-    ? `<span class="ac-icon ac-delete" data-delete="${esc(item._id)}" role="button" aria-label="O‘chirish" title="O‘chirish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></span>`
-    : "";
   const recency = dateBucket(item.createdAt).tone;
   const position = item.position || "Yo‘nalishsiz";
   return `
@@ -604,7 +620,7 @@ function cardHtml(item) {
         <span class="status-pill tone-${tone}"><i></i>${esc(interviewLabels[tone])}</span>
         ${isFresh(item) ? `<span class="new-pill">Yangi</span>` : ""}
         <time class="ac-time t-${recency}"><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.clock}</svg>${esc(relativeStamp(item.createdAt))}</time>
-        <span class="ac-tools">${remove}${heartHtml(item)}</span>
+        <span class="ac-tools">${cardActions(item)}</span>
       </div>
       <div class="ac-body">
         <div class="ac-photo-wrap">${photo}</div>
@@ -613,7 +629,7 @@ function cardHtml(item) {
           <span class="ac-role" style="--h:${positionHue(item.position)}">${esc(position)}</span>
           <div class="ac-facts">
             ${fact("phone", "Telefon", formatPhone(item.phone))}
-            ${fact("parent", "Ota-ona tel.", formatPhone(item.parentPhone))}
+            ${fact("parent", "Qo‘shimcha tel.", formatPhone(item.parentPhone))}
             ${fact("birthday", "Tug‘ilgan", item.birthday)}
             ${fact("language", "Til darajasi", item.languageLevel)}
             ${fact("interview", "Suhbat vaqti", prettyStamp(item.interviewAt))}
@@ -651,13 +667,14 @@ function render() {
   const directions = [...groupOrder(found), "Yo‘nalishsiz"].filter((name) => counts.get(name));
   const directionCount = new Set(allItems.map((item) => item.position).filter(Boolean)).size;
   const latest = allItems[0] ? formatDate(allItems[0].createdAt) : "—";
+  const totalLabel = archiveMode ? "Arxivdagi ariza" : "Jami ariza";
 
   if (latestNoteEl) latestNoteEl.textContent = `So‘nggi ariza: ${latest}`;
 
   const searchedDated = searchedItems().filter(dateMatch);
   const tileCount = (key) => searchedDated.filter((item) => interviewKey(item.interviewStatus) === key).length;
   const tiles = [
-    ["", "Jami arizalar", searchedDated.length, `${directionCount} ta yo‘nalish`],
+    ["", archiveMode ? "Arxivda" : "Jami arizalar", searchedDated.length, `${directionCount} ta yo‘nalish`],
     ["new", "Yangi", searchedDated.filter(isFresh).length, "Hali ochilmagan"],
     ["none", "Chaqirilmagan", tileCount("none"), "Javob kutmoqda"],
     ["expected", "Chaqirildi", tileCount("expected"), "Suhbatga"],
@@ -716,8 +733,8 @@ function render() {
     listEl.innerHTML = `
       <div class="empty">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l2 3h4l2-3h4M5 13l2-7h10l2 7v5H5z"/></svg>
-        <strong>Bu bo‘yicha ariza topilmadi</strong>
-        <p>Filtrlarni o‘zgartiring yoki botdan yangi ariza kelishini kuting.</p>
+        <strong>${archiveMode ? "Arxiv bo‘sh" : "Bu bo‘yicha ariza topilmadi"}</strong>
+        <p>${archiveMode ? "O‘chirilgan arizalar shu yerda turadi." : "Filtrlarni o‘zgartiring yoki botdan yangi ariza kelishini kuting."}</p>
       </div>`;
     return;
   }
@@ -775,7 +792,8 @@ function render() {
   }
 
   if (sort === "name") visible = [...visible].sort(byName);
-  else visible = [...visible].sort(byDate(sort === "oldest" ? "oldest" : "newest"));
+  else if (sort === "oldest") visible = [...visible].sort(byDate("oldest"));
+  else visible = [...visible].sort(byDate("newest"));
 
   const title = activePosition
     || (sort === "favorite" ? "Izbranniy" : sort === "all" ? "Barchasi" : sort === "name" ? "Ism bo‘yicha" : sort === "oldest" ? "Eskisidan" : sort === "newest" ? "Yangisidan" : "Sana bo‘yicha");
@@ -790,7 +808,7 @@ function render() {
 }
 
 async function loadApplications() {
-  const res = await fetch("/api/applications");
+  const res = await fetch(archiveMode ? "/api/applications?archived=1" : "/api/applications");
   if (res.status === 401) return showLogin();
   const data = await res.json();
   allItems = data.items || [];
@@ -994,7 +1012,7 @@ function bindAssessment(item, id) {
 
   page.addEventListener("click", (event) => {
     const button = event.target.closest(".q-rate [data-v]");
-    if (!button) return;
+    if (!button || !canChange()) return;
     const question = button.closest(".q");
     const i = Number(question.dataset.q);
     const value = Number(button.dataset.v);
@@ -1023,7 +1041,13 @@ function bindAssessment(item, id) {
     page.classList.add("hidden");
     passCard.classList.remove("hidden");
   });
+  if (!canChange()) {
+    page.classList.add("readonly");
+    page.querySelector("#assess-save").disabled = true;
+    stateEl.textContent = "Faqat ko‘rish: baholashga ruxsat yo‘q";
+  }
   page.querySelector("#assess-save").addEventListener("click", async () => {
+    if (!canChange()) return;
     const saveButton = page.querySelector("#assess-save");
     saveButton.disabled = true;
     const res = await fetch(`/api/applications/${id}/assessment`, {
@@ -1164,7 +1188,7 @@ async function openDetail(id, silent = false) {
           <div class="pass-next">
             ${block("Tug‘ilgan sana", item.birthday)}
             ${editCard("phone", "Telefon", formatPhone(item.phone), `<input name="phone" value="${esc(formatPhone(item.phone))}" placeholder="99 999 99 99" />`, true)}
-            ${editCard("parentPhone", "Ota-ona telefoni", formatPhone(item.parentPhone), `<input name="parentPhone" value="${esc(formatPhone(item.parentPhone))}" placeholder="99 999 99 99" />`, true)}
+            ${editCard("parentPhone", "Qo'shimcha yoki ota-ona telefoni", formatPhone(item.parentPhone), `<input name="parentPhone" value="${esc(formatPhone(item.parentPhone))}" placeholder="99 999 99 99" />`, true)}
             ${block("Millati", item.nation)}
             ${block("Oilaviy holat", item.maritalStatus)}
           </div>
@@ -1397,6 +1421,7 @@ async function openDetail(id, silent = false) {
 
   detailBody.querySelectorAll(".edit-card").forEach((card) => {
     card.addEventListener("click", (event) => {
+      if (!canChange()) return;
       if (event.target.closest(".edit-box")) return;
       if (card.classList.contains("editing")) return;
       detailBody.querySelectorAll(".edit-card.editing").forEach((other) => other.classList.remove("editing"));
@@ -1446,6 +1471,7 @@ async function openDetail(id, silent = false) {
   detailBody.querySelectorAll(".doc-slot").forEach((slot) => {
     const kind = slot.dataset.doc;
     slot.querySelector("input")?.addEventListener("change", async (event) => {
+      if (!canChange()) return;
       const file = event.target.files?.[0];
       event.target.value = "";
       if (!file) return;
@@ -1470,6 +1496,7 @@ async function openDetail(id, silent = false) {
       await openDetail(id, true);
     });
     slot.querySelector(".doc-clear")?.addEventListener("click", async () => {
+      if (!canChange()) return;
       if (!confirm("Aniq shu rasmni o‘chirayveraymi?")) return;
       const res = await fetch(`/api/applications/${id}/docs/${kind}`, { method: "DELETE" });
       if (!res.ok) return;
@@ -1531,6 +1558,7 @@ async function openDetail(id, silent = false) {
     await openDetail(id, true);
   });
   detailBody.querySelector("#doc-lightbox-clear")?.addEventListener("click", async () => {
+    if (!canChange()) return;
     const kind = detailBody.querySelector("#doc-lightbox")?.dataset.slot;
     if (!kind) return;
     if (!confirm("Aniq shu rasmni o‘chirayveraymi?")) return;
@@ -1558,6 +1586,7 @@ async function openDetail(id, silent = false) {
   kindMenu?.querySelectorAll("[data-kind]").forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
+      if (!canChange()) return;
       draft.contractKind = button.dataset.kind === "admin" ? "admin" : "teacher";
       if (kindToggle) kindToggle.textContent = button.textContent;
       kindMenu.classList.add("hidden");
@@ -1588,23 +1617,45 @@ async function openDetail(id, silent = false) {
     detailBody.querySelector("#photo-lightbox")?.classList.add("hidden");
   });
   document.querySelector("#header-delete")?.remove();
-  if (currentUser?.role !== "admin") return;
+  document.querySelector("#header-restore")?.remove();
+  if (item.archived && currentUser?.role === "admin") {
+    const restoreButton = document.createElement("button");
+    restoreButton.id = "header-restore";
+    restoreButton.type = "button";
+    restoreButton.className = "ghost";
+    restoreButton.textContent = "Qaytarish";
+    document.querySelector("#close-detail").before(restoreButton);
+    restoreButton.addEventListener("click", async () => {
+      if (!confirm("Bu ariza arxivdan qaytarilsinmi?")) return;
+      const res = await fetch(`/api/applications/${id}/restore`, { method: "POST" });
+      if (!res.ok) return;
+      allItems = allItems.filter((entry) => entry._id !== id);
+      detail.close();
+      render();
+    });
+  }
+  if (!canRemove()) return;
   const deleteButton = document.createElement("button");
   deleteButton.id = "header-delete";
   deleteButton.type = "button";
   deleteButton.className = "icon-btn danger";
-  deleteButton.setAttribute("aria-label", "O‘chirish");
+  deleteButton.setAttribute("aria-label", item.archived ? "O‘chirish" : "Arxivga o‘tkazish");
   deleteButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>`;
   document.querySelector("#close-detail").before(deleteButton);
-  deleteButton.addEventListener("click", async () => {
-    if (!confirm("Bu ariza kerakmas. O‘chirib tashlansinmi?")) return;
-    const res = await fetch(`/api/applications/${id}`, { method: "DELETE" });
-    if (!res.ok) return;
-    allItems = allItems.filter((entry) => entry._id !== id);
-    detail.close();
-    render();
+  deleteButton.addEventListener("click", () => {
+    if (item.archived) purgeFromArchive(id);
+    else moveToArchive(id);
   });
 }
+
+document.querySelector("#open-archive").addEventListener("click", async () => {
+  archiveMode = !archiveMode;
+  document.querySelector("#page-title").textContent = archiveMode ? "Arxiv" : "Qabul paneli";
+  document.querySelector("#open-archive").classList.toggle("on", archiveMode);
+  document.querySelector("#open-archive").setAttribute("aria-pressed", archiveMode ? "true" : "false");
+  if (detail.open) detail.close();
+  await loadApplications();
+});
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1649,7 +1700,7 @@ document.querySelector("#export-applications").addEventListener("click", () => {
     ["position", "Yo‘nalish"],
     ["birthday", "Tug‘ilgan sana"],
     ["phone", "Telefon"],
-    ["parentPhone", "Ota-ona telefoni"],
+    ["parentPhone", "Qo'shimcha yoki ota-ona telefoni"],
     ["address", "Manzil"],
     ["nation", "Millati"],
     ["education", "Ma’lumot"],
@@ -1708,7 +1759,7 @@ const importColumns = [
   ["position", "Yo‘nalish"],
   ["birthday", "Tug‘ilgan sana"],
   ["phone", "Telefon"],
-  ["parentPhone", "Ota-ona telefoni"],
+  ["parentPhone", "Qo'shimcha yoki ota-ona telefoni"],
   ["address", "Manzil"],
   ["nation", "Millati"],
   ["education", "Ma’lumot"],
@@ -1873,6 +1924,27 @@ statusEl.addEventListener("change", () => {
   render();
 });
 listEl.addEventListener("click", (event) => {
+  const archiveBtn = event.target.closest("[data-archive]");
+  if (archiveBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    moveToArchive(archiveBtn.dataset.archive);
+    return;
+  }
+  const purgeBtn = event.target.closest("[data-purge]");
+  if (purgeBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    purgeFromArchive(purgeBtn.dataset.purge);
+    return;
+  }
+  const restoreBtn = event.target.closest("[data-restore]");
+  if (restoreBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    takeFromArchive(restoreBtn.dataset.restore);
+    return;
+  }
   const fav = event.target.closest("[data-fav]");
   if (fav) {
     event.preventDefault();
@@ -1880,28 +1952,41 @@ listEl.addEventListener("click", (event) => {
     toggleFavorite(fav.dataset.fav);
     return;
   }
-  const remove = event.target.closest("[data-delete]");
-  if (remove) {
-    event.preventDefault();
-    event.stopPropagation();
-    deleteApplication(remove.dataset.delete);
-    return;
-  }
   const card = event.target.closest("[data-id]");
   if (card) openDetail(card.dataset.id);
 });
 
-async function deleteApplication(id) {
-  const item = allItems.find((entry) => entry._id === id);
-  if (!confirm(`${item?.fullName || "Bu ariza"} o‘chirib tashlansinmi?`)) return;
-  const res = await fetch(`/api/applications/${id}`, { method: "DELETE" });
+function closeDetailIf(id) {
+  if (!detail.open) return;
+  if (document.querySelector("#detail-fav")?.dataset.fav === id) detail.close();
+}
+
+async function removeRequest(id, url, method) {
+  const res = await fetch(url, { method });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    alert(data.error || "O‘chirilmadi");
-    return;
+    alert(data.error || "Bajarilmadi");
+    return false;
   }
   allItems = allItems.filter((entry) => entry._id !== id);
+  closeDetailIf(id);
   render();
+  return true;
+}
+
+async function moveToArchive(id) {
+  if (!confirm("Bu ariza arxivga o‘tkazilsinmi?")) return;
+  await removeRequest(id, `/api/applications/${id}`, "DELETE");
+}
+
+async function purgeFromArchive(id) {
+  if (!confirm("Bu ariza arxivdan butunlay o‘chirilsinmi? Qaytarib bo‘lmaydi.")) return;
+  await removeRequest(id, `/api/applications/${id}`, "DELETE");
+}
+
+async function takeFromArchive(id) {
+  if (!confirm("Bu ariza arxivdan qaytarilsinmi?")) return;
+  await removeRequest(id, `/api/applications/${id}/restore`, "POST");
 }
 
 async function toggleFavorite(id) {
@@ -1940,10 +2025,10 @@ async function loadStaff() {
       <div class="staff-row">
         <div>
           <p><strong>${esc(person.surname)} ${esc(person.name)}</strong></p>
-          <p class="muted">${esc(person.username)} · ${person.role === "admin" ? "Admin" : "Hodim"}</p>
+          <p class="muted">${esc(person.username)} · ${person.role === "admin" ? "Admin" : `Xodim · ${[person.canEdit ? "o‘zgartirish" : "", person.canDelete ? "o‘chirish" : ""].filter(Boolean).join(", ") || "faqat ko‘rish"}`}</p>
         </div>
         <div class="staff-actions">
-          <button type="button" class="ghost" data-edit-staff="${esc(person.id)}" data-surname="${esc(person.surname)}" data-name="${esc(person.name)}" data-username="${esc(person.username)}">Tahrirlash</button>
+          <button type="button" class="ghost" data-edit-staff="${esc(person.id)}" data-role="${esc(person.role)}" data-edit="${person.canEdit ? "1" : "0"}" data-remove="${person.canDelete ? "1" : "0"}" data-surname="${esc(person.surname)}" data-name="${esc(person.name)}" data-username="${esc(person.username)}">Tahrirlash</button>
           ${person.role === "admin" ? "" : `<button type="button" class="danger" data-delete-staff="${esc(person.id)}">O‘chirish</button>`}
         </div>
       </div>`,
@@ -1951,10 +2036,17 @@ async function loadStaff() {
     .join("");
 }
 
+function syncStaffPerms() {
+  const show = staffForm.elements.role.value !== "admin";
+  document.querySelector("#staff-perms").classList.toggle("hidden", !show);
+}
+staffForm.elements.role.addEventListener("change", syncStaffPerms);
+
 document.querySelector("#open-staff").addEventListener("click", async () => {
   document.querySelector(".account").classList.remove("open");
   staffError.textContent = "";
   staffForm.reset();
+  syncStaffPerms();
   await loadStaff();
   staffDialog.showModal();
 });
@@ -2000,6 +2092,8 @@ staffForm.addEventListener("submit", async (event) => {
   const id = body.id;
   delete body.id;
   if (!body.password) delete body.password;
+  body.canEdit = Boolean(staffForm.elements.canEdit.checked);
+  body.canDelete = Boolean(staffForm.elements.canDelete.checked);
   const res = await fetch(id ? `/api/staff/${id}` : "/api/staff", {
     method: id ? "PATCH" : "POST",
     headers: { "Content-Type": "application/json" },
@@ -2025,7 +2119,11 @@ staffList.addEventListener("click", async (event) => {
     staffForm.elements.surname.value = edit.dataset.surname;
     staffForm.elements.name.value = edit.dataset.name;
     staffForm.elements.username.value = edit.dataset.username;
+    staffForm.elements.role.value = edit.dataset.role === "admin" ? "admin" : "staff";
+    staffForm.elements.canEdit.checked = edit.dataset.edit === "1";
+    staffForm.elements.canDelete.checked = edit.dataset.remove === "1";
     staffForm.elements.password.value = "";
+    syncStaffPerms();
     return;
   }
   const remove = event.target.closest("[data-delete-staff]");

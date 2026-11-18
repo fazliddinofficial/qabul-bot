@@ -30,8 +30,12 @@ bot.telegram.callApi = async (method, payload, options) => {
       return await originalCallApi(method, payload, options);
     } catch (error) {
       lastError = error;
-      const message = error?.message || "";
-      const transient = /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|FetchError|network/i.test(message);
+      const message = `${error?.message || ""} ${error?.cause?.message || ""} ${error?.code || ""}`;
+      const status = error?.response?.error_code;
+      const transient =
+        status === 429 ||
+        status >= 500 ||
+        /ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|FetchError|network|failed, reason|EPIPE|UND_ERR/i.test(message);
       if (!transient || attempt === 3 || error?.name === "AbortError") throw error;
       console.error(`${method} qayta uriniladi (${attempt}/3):`, message);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
@@ -324,7 +328,12 @@ bot.on("message", async (ctx) => {
   const currentQuestion = session.questions[session.step];
 
   if (!currentQuestion.validate(ctx)) {
-    return ctx.reply(currentQuestion.errorMsg);
+    try {
+      await ctx.reply(currentQuestion.errorMsg);
+    } catch (error) {
+      console.error("Xato javobi yuborilmadi:", error?.message || error);
+    }
+    return;
   }
 
   const extractedValue = currentQuestion.extract(ctx);
@@ -334,12 +343,15 @@ bot.on("message", async (ctx) => {
     phonesMatch(extractedValue, session.answers.parentPhone)
   ) {
     return ctx.reply(
-      "❌ Bu raqam ota-onangiz raqami bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
+      "❌ Bu raqam qo'shimcha yoki ota-ona raqamingiz bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
       { reply_markup: phoneKeyboard },
     );
   }
 
   session.answers[currentQuestion.id] = extractedValue;
+  if (currentQuestion.id === "photo") {
+    session.answers.photoKind = ctx.message?.photo ? "photo" : "document";
+  }
   session.step++;
 
   if (session.step < session.questions.length) {
@@ -385,6 +397,20 @@ bot.on("message", async (ctx) => {
           Markup.button.callback("Tugallanmagan oliy", "incomplete"),
         ]),
       );
+    }
+
+    if (nextQuestion.id === "workHours") {
+      return ctx.reply(nextQuestion.text, {
+        reply_markup: {
+          keyboard: [
+            [{ text: "1-smena" }],
+            [{ text: "2-smena" }],
+            [{ text: "to'liq smena" }],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      });
     }
 
     if (nextQuestion.id === "maritalStatus") {
@@ -450,62 +476,96 @@ async function persistApplication(ctx, session) {
   }
 }
 
-async function sendToRecruiter(ctx, session) {
-  const answers = session.answers;
+async function sendRecruitmentFile(ctx, fileId, opts, asDocument) {
+  if (asDocument) {
+    await ctx.telegram.sendDocument(CHANNEL_OR_GROUP_TOKEN, fileId, opts);
+    return;
+  }
+  await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, fileId, opts);
+}
 
-  const msg = `
+function clipText(value, max) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function recruitmentCaption(answers, ctx) {
+  const limits = {
+    prevJob: 500,
+    address: 220,
+    institution: 160,
+    foundResource: 80,
+  };
+
+  const build = () =>
+    `
 📩 <b>Yangi ish so'rov</b>
 
-👔 <b>#${answers.position}</b>
-👤 <b>I.F.Sh:</b> ${answers.fullName}
-🗓️ <b>Tug'ilgan sanasi:</b> ${answers.birthday}
-📍 <b>Manzil:</b> ${answers.address}
+👔 <b>#${clipText(answers.position, 80)}</b>
+👤 <b>I.F.Sh:</b> ${clipText(answers.fullName, 80)}
+🗓️ <b>Tug'ilgan sanasi:</b> ${clipText(answers.birthday, 20)}
+📍 <b>Manzil:</b> ${clipText(answers.address, limits.address)}
 📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}
-👨‍👩‍👦 <b>Ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
-🌍 <b>Millati:</b> ${answers.nation}
+👨‍👩‍👦 <b>Qo'shimcha yoki ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
+🌍 <b>Millati:</b> ${clipText(answers.nation, 40)}
 
-💼 <b>Yo'nalish:</b> ${answers.position}
-🎓 <b>Ma'lumot:</b> ${answers.education}
-🎓 <b>Oliygoh nomi va yo'nalishi:</b> ${answers.institution}
-🎓 <b>Tugatish yoki tugallagan yil:</b> ${answers.graduationYear}
-🌐 <b>Til darajasi:</b> ${answers.languageLevel}
-💻 <b>Kompyuter:</b> ${answers.computerSkills}
+💼 <b>Yo'nalish:</b> ${clipText(answers.position, 80)}
+🎓 <b>Ma'lumot:</b> ${clipText(answers.education, 40)}
+🎓 <b>Oliygoh nomi va yo'nalishi:</b> ${clipText(answers.institution, limits.institution)}
+🎓 <b>Tugatish yoki tugallagan yil:</b> ${clipText(answers.graduationYear, 40)}
+🌐 <b>Til darajasi:</b> ${clipText(answers.languageLevel, 40)}
+💻 <b>Kompyuter:</b> ${clipText(answers.computerSkills, 40)}
 
-📋 <b>Oldingi ish:</b> ${answers.prevJob}
-💰 <b>Oxirgi oylik:</b> ${answers.lastSalary}
-💵 <b>Kutilayotgan oylik:</b> ${answers.expectedSalary}
+📋 <b>Oldingi ish:</b> ${clipText(answers.prevJob, limits.prevJob)}
+💰 <b>Oxirgi oylik:</b> ${clipText(answers.lastSalary, 30)}
+💵 <b>Kutilayotgan oylik:</b> ${clipText(answers.expectedSalary, 30)}
 
-💑 <b>Oilaviy holat:</b> ${answers.maritalStatus}
-⏰ <b>Ish vaqti:</b> ${answers.workHours}
-📅 <b>Ishlash davomiyligi:</b> ${answers.workDuration}
-🌐 <b>Ishni topgan manbalar: #${answers.foundResource}</b>
+💑 <b>Oilaviy holat:</b> ${clipText(answers.maritalStatus, 40)}
+⏰ <b>Ish vaqti:</b> ${clipText(answers.workHours, 40)}
+📅 <b>Ishlash davomiyligi:</b> ${clipText(answers.workDuration, 80)}
+🌐 <b>Ishni topgan manbalar: #${clipText(answers.foundResource, limits.foundResource)}</b>
 
 🆔 <b>Telegram username:</b> @${ctx.from.username || "N/A"}
 🆔 <b>Telegram id:</b> ${ctx.from.id || "N/A"}
-`;
+`.trim();
 
-  const opts = { caption: msg, parse_mode: "HTML" };
+  let caption = build();
+  while (caption.length > 1024 && limits.prevJob > 40) {
+    limits.prevJob -= 40;
+    caption = build();
+  }
+  while (caption.length > 1024 && limits.address > 40) {
+    limits.address -= 20;
+    caption = build();
+  }
+  while (caption.length > 1024 && limits.institution > 40) {
+    limits.institution -= 20;
+    caption = build();
+  }
+  return caption.length > 1024 ? caption.slice(0, 1024) : caption;
+}
+
+async function sendToRecruiter(ctx, session) {
+  const answers = session.answers;
+  const opts = { caption: recruitmentCaption(answers, ctx), parse_mode: "HTML" };
+  const preferDocument = answers.photoKind === "document";
   let sent = false;
 
   try {
-    await ctx.telegram.sendDocument(
-      CHANNEL_OR_GROUP_TOKEN,
-      answers.photo,
-      opts,
-    );
+    await sendRecruitmentFile(ctx, answers.photo, opts, preferDocument);
     sent = true;
   } catch (error) {
     console.error(
-      "sendDocument failed:",
+      "Rasm yuborilmadi:",
       error.response?.description || error.message,
     );
-
     try {
-      await ctx.telegram.sendPhoto(CHANNEL_OR_GROUP_TOKEN, answers.photo, opts);
+      await sendRecruitmentFile(ctx, answers.photo, opts, !preferDocument);
       sent = true;
     } catch (err2) {
       console.error(
-        "sendPhoto also failed:",
+        "Rasm qayta yuborilmadi:",
         err2.response?.description || err2.message,
       );
     }

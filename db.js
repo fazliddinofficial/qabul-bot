@@ -88,7 +88,10 @@ const applicationSchema = new mongoose.Schema(
     favorite: { type: Boolean, default: false },
     // Panelda birinchi marta ochilgan vaqt. Bo'sh bo'lsa ariza "Yangi" (ochilmagan) hisoblanadi
     seenAt: { type: Date, default: null },
+    archived: { type: Boolean, default: false },
+    archivedAt: { type: Date, default: null },
     hasPhoto: { type: Boolean, default: false },
+    photoFileId: { type: String, default: "" },
     photo: {
       data: Buffer,
       contentType: { type: String, default: "image/jpeg" },
@@ -105,6 +108,8 @@ const staffSchema = new mongoose.Schema(
     surname: { type: String, default: "" },
     name: { type: String, default: "" },
     role: { type: String, default: "staff" },
+    canEdit: { type: Boolean, default: false },
+    canDelete: { type: Boolean, default: false },
   },
   { collection: "staff_users", timestamps: true },
 );
@@ -189,13 +194,20 @@ export async function verifyPassword(password, stored) {
   return timingSafeEqual(left, right);
 }
 
+function flag(value) {
+  return value === true || value === "true" || value === "1" || value === "on";
+}
+
 function publicStaff(doc) {
+  const admin = doc.role === "admin";
   return {
     id: String(doc._id),
     username: doc.username,
     surname: doc.surname || "",
     name: doc.name || "",
-    role: doc.role === "admin" ? "admin" : "staff",
+    role: admin ? "admin" : "staff",
+    canEdit: admin || Boolean(doc.canEdit),
+    canDelete: admin || Boolean(doc.canDelete),
   };
 }
 
@@ -266,7 +278,7 @@ function cleanUsername(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-export async function createStaff({ surname, name, username, password }) {
+export async function createStaff({ surname, name, username, password, role, canEdit, canDelete }) {
   const login = cleanUsername(username);
   if (!/^[a-z0-9._-]{3,32}$/.test(login)) {
     const error = new Error("Login 3–32 ta belgi: harf, raqam, nuqta");
@@ -297,7 +309,9 @@ export async function createStaff({ surname, name, username, password }) {
     passwordHash: await hashPassword(password),
     surname: personSurname,
     name: personName,
-    role: "staff",
+    role: role === "admin" ? "admin" : "staff",
+    canEdit: flag(canEdit),
+    canDelete: flag(canDelete),
   });
   return publicStaff(created);
 }
@@ -325,9 +339,21 @@ export async function updateStaff(id, input) {
     error.status = 409;
     throw error;
   }
+  const role = input.role === "admin" ? "admin" : "staff";
+  if (doc.role === "admin" && role !== "admin") {
+    const admins = await Staff.countDocuments({ ownerToken: ownerToken(), role: "admin" });
+    if (admins <= 1) {
+      const error = new Error("Oxirgi admin rolini o‘zgartirib bo‘lmaydi");
+      error.status = 400;
+      throw error;
+    }
+  }
   doc.surname = personSurname;
   doc.name = personName;
   doc.username = login;
+  doc.role = role;
+  doc.canEdit = flag(input.canEdit);
+  doc.canDelete = flag(input.canDelete);
   if (input.password) {
     if (String(input.password).length < 4) {
       const error = new Error("Parol kamida 4 ta belgi bo‘lishi kerak");
@@ -351,6 +377,19 @@ export async function deleteStaff(id) {
 export async function connectDb(uri) {
   mongoose.set("strictQuery", true);
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
+  await markExistingApplicationsSeen();
+}
+
+async function markExistingApplicationsSeen() {
+  const meta = mongoose.connection.collection("app_meta");
+  const flag = await meta.findOne({ _id: "seen-backfill" });
+  if (flag) return;
+  const cutoff = new Date("2026-10-15T19:00:00.000Z");
+  await Application.updateMany(
+    { seenAt: { $exists: false }, createdAt: { $lt: cutoff } },
+    { $set: { seenAt: cutoff } },
+  );
+  await meta.insertOne({ _id: "seen-backfill", at: new Date() });
 }
 
 export async function createUser({ userId, jobsTitle }) {
@@ -410,6 +449,27 @@ async function downloadTelegramFile(fileId) {
   };
 }
 
+async function downloadTelegramFileWithRetry(fileId) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await downloadTelegramFile(fileId);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
+function storedPhoto(doc) {
+  if (!doc?.photo?.data) return null;
+  const raw = doc.photo.data;
+  const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer || raw);
+  if (!data.length) return null;
+  return { data, contentType: doc.photo.contentType || "image/jpeg" };
+}
+
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -433,9 +493,12 @@ async function assignContractNumbers() {
   }
 }
 
-export async function listApplications({ q, position } = {}) {
+export async function listApplications({ q, position, archived } = {}) {
   await assignContractNumbers();
-  const filter = { ownerToken: ownerToken() };
+  const filter = {
+    ownerToken: ownerToken(),
+    archived: archived ? true : { $ne: true },
+  };
 
   if (position) {
     filter.position = position;
@@ -460,6 +523,21 @@ export async function listApplications({ q, position } = {}) {
     .lean();
 }
 
+export async function markApplicationSeen(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return Application.findOneAndUpdate(
+    {
+      _id: id,
+      ownerToken: ownerToken(),
+      $or: [{ seenAt: null }, { seenAt: { $exists: false } }],
+    },
+    { $set: { seenAt: new Date() } },
+    { new: true },
+  )
+    .select("seenAt")
+    .lean();
+}
+
 export async function getApplicationById(id) {
   if (!mongoose.isValidObjectId(id)) return null;
   await assignContractNumbers();
@@ -479,14 +557,24 @@ export async function getApplicationPhoto(id) {
     _id: id,
     ownerToken: ownerToken(),
   })
-    .select("photo hasPhoto")
+    .select("photo hasPhoto photoFileId")
     .lean();
 
-  if (!doc?.hasPhoto || !doc.photo?.data) return null;
-  const raw = doc.photo.data;
-  const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer || raw);
-  if (!data.length) return null;
-  return { data, contentType: doc.photo.contentType };
+  const stored = storedPhoto(doc);
+  if (stored) return stored;
+  if (!doc?.photoFileId) return null;
+
+  try {
+    const file = await downloadTelegramFileWithRetry(doc.photoFileId);
+    await Application.updateOne(
+      { _id: id, ownerToken: ownerToken() },
+      { photo: file, hasPhoto: true },
+    );
+    return file;
+  } catch (error) {
+    console.error("Rasm qayta yuklanmadi:", error.message);
+    return null;
+  }
 }
 
 function fileBuffer(raw) {
@@ -749,16 +837,6 @@ export async function saveAssessment(id, input, actor) {
     .lean();
 }
 
-export async function markApplicationSeen(id) {
-  if (!mongoose.isValidObjectId(id)) return null;
-  // seenAt: null maydon yo'q hujjatlarni ham ushlaydi; faqat birinchi ochilish vaqti yoziladi
-  await Application.updateOne(
-    { _id: id, ownerToken: ownerToken(), seenAt: null },
-    { $set: { seenAt: new Date() } },
-  );
-  return getApplicationById(id);
-}
-
 export async function setApplicationFavorite(id, favorite) {
   if (!mongoose.isValidObjectId(id)) return null;
   return Application.findOneAndUpdate(
@@ -772,10 +850,35 @@ export async function setApplicationFavorite(id, favorite) {
 
 export async function deleteApplication(id) {
   if (!mongoose.isValidObjectId(id)) return null;
-  return Application.findOneAndDelete({
+  const purged = await Application.findOneAndDelete({
     _id: id,
     ownerToken: ownerToken(),
-  }).select("_id");
+    archived: true,
+  })
+    .select("_id fullName position")
+    .lean();
+  if (purged) return { ...purged, purged: true };
+
+  const archived = await Application.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken(), archived: { $ne: true } },
+    { archived: true, archivedAt: new Date() },
+    { new: true },
+  )
+    .select("_id fullName position")
+    .lean();
+  if (!archived) return null;
+  return { ...archived, purged: false };
+}
+
+export async function restoreApplication(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return Application.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken(), archived: true },
+    { archived: false, archivedAt: null },
+    { new: true },
+  )
+    .select(withoutFiles)
+    .lean();
 }
 
 async function nextContractNumber() {
@@ -803,11 +906,13 @@ export async function saveApplication({ telegramUserId, username, answers }) {
   doc.contractNumber = await nextContractNumber();
 
   if (answers.photo) {
+    doc.photoFileId = String(answers.photo);
     try {
-      doc.photo = await downloadTelegramFile(answers.photo);
+      doc.photo = await downloadTelegramFileWithRetry(answers.photo);
       doc.hasPhoto = true;
     } catch (error) {
       console.error("Rasm saqlanmadi:", error.message);
+      doc.hasPhoto = true;
     }
   }
 
@@ -845,6 +950,7 @@ export async function importApplications(rows) {
     const telegramUserId = String(row.telegramUserId || "").trim().slice(0, 40);
     const duplicate = await Application.findOne({
       ownerToken: ownerToken(),
+      archived: { $ne: true },
       fullName,
       phone,
       position,
@@ -868,6 +974,7 @@ export async function importApplications(rows) {
       callerName: String(row.callerName || "").slice(0, 80),
       interviewerName: String(row.interviewerName || "").slice(0, 80),
       hasPhoto: false,
+      seenAt: new Date(),
       passportSeries: String(row.passportSeries || "").trim().toUpperCase().slice(0, 20),
       jshshir: String(row.jshshir || "").replace(/\D/g, "").slice(0, 14),
     };

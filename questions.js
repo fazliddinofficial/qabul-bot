@@ -1,5 +1,25 @@
 import { VALID_POSITIONS } from "./constants.js";
 
+function salaryAmount(text) {
+  const raw = String(text || "").trim();
+  if (!/^[\d\s]+$/.test(raw)) return "";
+  const digits = raw.replace(/\s/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits || digits.length > 12) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+const WORK_SHIFTS = ["1-smena", "2-smena", "to'liq smena"];
+
+function isImageDocument(document) {
+  if (!document) return false;
+  const mimeType = document.mime_type?.toLowerCase() || "";
+  const fileName = document.file_name?.toLowerCase() || "";
+  return (
+    ["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(mimeType) ||
+    [".jpg", ".jpeg", ".png", ".webp"].some((ext) => fileName.endsWith(ext))
+  );
+}
+
 export const questions = [
   {
     id: "photo",
@@ -8,30 +28,16 @@ export const questions = [
     📸 1) Foto suratingizni yuboring
 
     ⚠️ Diqqat:
-    • Galereyadan eski rasm yubormang❗
-    • Rasmni bevosita kameradan olish majburiy❗
     • Yuzingiz aniq va yorug‘ ko‘rinsin
     • Rasm sifatli bo‘lishi kerak
+    • JPG, PNG yoki WEBP bo‘lsin
     `,
     type: "photo",
     validate: (ctx) => {
       if (ctx.message?.photo) return true;
-
-      if (ctx.message?.document) {
-        const mimeType = ctx.message.document.mime_type;
-        const fileName = ctx.message.document.file_name?.toLowerCase() || "";
-
-        return (
-          mimeType === "image/jpg" ||
-          mimeType === "image/jpeg" ||
-          fileName.endsWith(".jpg") ||
-          fileName.endsWith(".jpeg")
-        );
-      }
-
-      return false;
+      return isImageDocument(ctx.message?.document);
     },
-    errorMsg: "❌ Iltimos, faqat JPG formatidagi rasm yuboring!",
+    errorMsg: "❌ Iltimos, rasm yuboring (JPG, PNG yoki WEBP)!",
     extract: (ctx) => {
       if (ctx.message.photo) {
         return ctx.message.photo[ctx.message.photo.length - 1].file_id;
@@ -166,11 +172,11 @@ export const questions = [
   },
   {
     id: "lastSalary",
-    text: "11) Oxirgi ishlagan ishingizda oylik maoshingiz: (summa)",
+    text: "11) Oxirgi ishlagan ishingizda oylik maoshingizni faqat raqamda kiriting:",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, oxirgi maoshingizni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
+    validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
+    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 5000000",
+    extract: (ctx) => salaryAmount(ctx.message.text),
   },
   {
     id: "workDuration",
@@ -182,7 +188,7 @@ export const questions = [
   },
   {
     id: "parentPhone",
-    text: "13) Otangizni yoki onangizni telefon raqamini kiriting:",
+    text: "13) Qo'shimcha telefon raqam yoki ota-onangizning telefon raqamini kiriting:",
     type: "text",
     validate: (ctx) => {
       const phone = ctx.message?.text?.replace(/\s/g, "") || "";
@@ -201,28 +207,23 @@ export const questions = [
   },
   {
     id: "workHours",
-    text: `15) Soat nechidan nechigacha ishlay olasiz?
-
-    📌 Misol:
-    09:00 dan 14:00 gacha
-    yoki
-    14:00 dan 20:00 gacha`,
+    text: "15) Soat nechidan nechigacha ishlay olasiz?",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, ish vaqtingizni kiriting!",
+    validate: (ctx) => WORK_SHIFTS.includes(ctx.message?.text?.trim()),
+    errorMsg: "❌ Iltimos, pastdagi tugmalardan birini tanlang!",
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
     id: "expectedSalary",
-    text: "16) Bizdan qancha oylikga ishlamoqchisiz?",
+    text: "16) Bizdan qancha oylikga ishlamoqchisiz? Summani faqat raqamda kiriting:",
     type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, kutilayotgan maoshingizni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
+    validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
+    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 5000000",
+    extract: (ctx) => salaryAmount(ctx.message.text),
   },
   {
     id: "phone",
-    text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Ota-ona raqamidan farq qilishi shart:",
+    text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Qo'shimcha yoki ota-ona raqamidan farq qilishi shart:",
     type: "contact",
     validate: (ctx) => {
       return (

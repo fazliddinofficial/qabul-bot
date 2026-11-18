@@ -8,9 +8,11 @@ import {
   authenticateStaff,
   createStaff,
   deleteApplication,
+  restoreApplication,
   deleteStaff,
   ensureDefaultAdmin,
   getApplicationById,
+  markApplicationSeen,
   getApplicationPhoto,
   getApplicationFile,
   saveApplicationFile,
@@ -22,7 +24,6 @@ import {
   listStaff,
   recordActivity,
   updateApplicationReview,
-  markApplicationSeen,
   saveAssessment,
   ASSESSMENT_COUNT,
   setApplicationFavorite,
@@ -41,6 +42,18 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: "Bu bo‘lim faqat admin uchun" });
 }
 
+function requireEdit(req, res, next) {
+  const user = req.session?.user;
+  if (user?.role === "admin" || user?.canEdit) return next();
+  return res.status(403).json({ error: "O‘zgartirishga ruxsat yo‘q" });
+}
+
+function requireDelete(req, res, next) {
+  const user = req.session?.user;
+  if (user?.role === "admin" || user?.canDelete) return next();
+  return res.status(403).json({ error: "O‘chirishga ruxsat yo‘q" });
+}
+
 function actorOf(req) {
   return req.session?.user || null;
 }
@@ -53,7 +66,7 @@ const reviewFields = [
   ["agreedSalary", "Kelishilgan oylik"],
   ["expectedSalary", "Kutilayotgan oylik"],
   ["phone", "Telefon"],
-  ["parentPhone", "Ota-ona telefoni"],
+  ["parentPhone", "Qo'shimcha yoki ota-ona telefoni"],
   ["workHours", "Ish vaqti"],
   ["workDuration", "Ishlash muddati"],
   ["passportSeries", "Pasport seriyasi"],
@@ -252,7 +265,7 @@ export async function startWeb() {
     res.json({ ok: true });
   });
 
-  app.post("/api/applications/import", requireAuth, async (req, res) => {
+  app.post("/api/applications/import", requireAuth, requireEdit, async (req, res) => {
     const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
     if (!rows.length) return res.status(400).json({ error: "Faylda ariza topilmadi" });
     const result = await importApplications(rows);
@@ -268,6 +281,7 @@ export async function startWeb() {
     const items = await listApplications({
       q: req.query.q,
       position: req.query.position,
+      archived: req.query.archived === "1",
     });
     res.json({ items, positions: VALID_POSITIONS, departments: DEPARTMENTS });
   });
@@ -287,7 +301,7 @@ export async function startWeb() {
     res.json({ item });
   });
 
-  app.put("/api/applications/:id/assessment", requireAuth, async (req, res) => {
+  app.put("/api/applications/:id/assessment", requireAuth, requireEdit, async (req, res) => {
     try {
       const item = await saveAssessment(req.params.id, req.body || {}, req.session.user);
       if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
@@ -303,7 +317,7 @@ export async function startWeb() {
     }
   });
 
-  app.patch("/api/applications/:id", requireAuth, async (req, res) => {
+  app.patch("/api/applications/:id", requireAuth, requireEdit, async (req, res) => {
     try {
       const before = await getApplicationById(req.params.id);
       const item = await updateApplicationReview(req.params.id, req.body || {}, req.session.user);
@@ -322,28 +336,40 @@ export async function startWeb() {
     }
   });
 
-  app.delete("/api/applications/:id", requireAuth, requireAdmin, async (req, res) => {
+  app.delete("/api/applications/:id", requireAuth, requireDelete, async (req, res) => {
     const before = await getApplicationById(req.params.id);
     const item = await deleteApplication(req.params.id);
     if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
     await recordActivity({
       actor: actorOf(req),
-      action: "Arizani o‘chirdi",
+      action: item.purged ? "Arxivdan o‘chirdi" : "Arxivga o‘tkazdi",
       detail: [before?.fullName, before?.position].filter(Boolean).join(", ") || "Ariza",
     });
     res.json({ ok: true });
   });
 
+  app.post("/api/applications/:id/restore", requireAuth, requireAdmin, async (req, res) => {
+    const item = await restoreApplication(req.params.id);
+    if (!item) return res.status(404).json({ error: "Arxivda bunday ariza yo‘q" });
+    await recordActivity({
+      actor: actorOf(req),
+      action: "Arxivdan qaytardi",
+      detail: [item.fullName, item.position].filter(Boolean).join(", ") || "Ariza",
+    });
+    res.json({ item });
+  });
+
   app.get("/api/applications/:id", requireAuth, async (req, res) => {
-    let item = await getApplicationById(req.params.id);
+    const item = await getApplicationById(req.params.id);
     if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
-    if (!item.seenAt) item = (await markApplicationSeen(req.params.id)) || item;
     if (req.query.silent !== "1") {
       await recordActivity({
         actor: actorOf(req),
         action: "Arizani ochdi",
         detail: [item.fullName, item.position].filter(Boolean).join(", "),
       });
+      const seen = await markApplicationSeen(req.params.id);
+      if (seen?.seenAt) item.seenAt = seen.seenAt;
     }
     res.json({ item });
   });
@@ -373,6 +399,7 @@ export async function startWeb() {
   app.put(
     "/api/applications/:id/docs/:slot",
     requireAuth,
+    requireEdit,
     express.raw({ type: () => true, limit: "15mb" }),
     async (req, res) => {
       const meta = DOC_SLOTS[req.params.slot];
@@ -402,7 +429,7 @@ export async function startWeb() {
     },
   );
 
-  app.delete("/api/applications/:id/docs/:slot", requireAuth, async (req, res) => {
+  app.delete("/api/applications/:id/docs/:slot", requireAuth, requireEdit, async (req, res) => {
     const meta = DOC_SLOTS[req.params.slot];
     if (!meta) return res.status(404).json({ error: "Hujjat turi topilmadi" });
     const item = await clearApplicationFile(req.params.id, req.params.slot);

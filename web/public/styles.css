@@ -1977,6 +1977,46 @@ button.pass-field.score-launch strong { white-space: normal; }
   .q-rate .r small { font-size: 8.5px; white-space: normal; text-align: center; }
 }
 
+/* ============ Arxiv va hodim ruxsatlari ============ */
+.archive-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.archive-btn.on {
+  background: var(--t-missed);
+  border-color: var(--t-missed);
+  color: #fff;
+}
+.ac-restore:hover { color: var(--t-today); background: var(--t-today-soft); border-color: var(--t-today); }
+
+.staff-form .perms {
+  grid-column: 1 / -1;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.perms legend { padding: 0 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.staff-form label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+.check input { width: 18px; height: 18px; padding: 0; accent-color: var(--accent-bg); }
+
+.assess-page.readonly .q-rate .r { cursor: not-allowed; opacity: 0.75; }
+
 /* ============ Responsive ============ */
 @media (max-width: 1200px) {
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
