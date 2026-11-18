@@ -517,46 +517,102 @@ button.danger:hover { background: #b91c1c; }
   stroke-linejoin: round;
 }
 
-/* ============ Chips ============ */
+/* ============ Yo'nalish chiplari ============ */
+/* Bir xil kenglikdagi rangli kartochkalar; har bir yo'nalish o'z rangida (--h) */
 .chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
   gap: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
 }
 .chip {
-  flex: 0 0 auto;
-  display: inline-flex;
+  --h: 245;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 8px 7px 14px;
-  background: var(--surface);
-  color: var(--ink-2);
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 9px 9px 12px;
+  background: hsl(var(--h) 85% 97%);
+  color: hsl(var(--h) 40% 26%);
+  border: 1px solid hsl(var(--h) 60% 89%);
+  border-radius: 12px;
   font-size: 13px;
-  font-weight: 500;
-  line-height: 1.2;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  overflow: hidden;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s, border-color 0.15s;
 }
-.chip:hover { background: var(--surface); border-color: var(--hover-line); color: var(--ink); }
+.chip:hover {
+  background: hsl(var(--h) 85% 94%);
+  border-color: hsl(var(--h) 65% 70%);
+  color: hsl(var(--h) 45% 22%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px hsl(var(--h) 60% 50% / 0.14);
+}
+.chip-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .chip i {
-  font-style: normal;
-  min-width: 24px;
-  padding: 2px 7px;
+  flex: none;
+  min-width: 30px;
+  padding: 3px 8px;
   border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--ink);
+  background: hsl(var(--h) 70% 55% / 0.16);
+  color: hsl(var(--h) 60% 36%);
   font-size: 12px;
-  font-weight: 700;
+  font-style: normal;
+  font-weight: 800;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .chip.active {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: linear-gradient(135deg, hsl(var(--h) 72% 56%), hsl(var(--h) 70% 46%));
+  border-color: hsl(var(--h) 70% 46%);
+  color: #fff;
+  box-shadow: 0 8px 18px hsl(var(--h) 70% 45% / 0.3);
+}
+.chip.active i { background: rgba(255, 255, 255, 0.24); color: #fff; }
+.chip.active .chip-dot { background: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3); }
+
+:root[data-theme="dark"] .chip {
+  background: hsl(var(--h) 45% 50% / 0.09);
+  border-color: hsl(var(--h) 50% 60% / 0.22);
+  color: hsl(var(--h) 70% 84%);
+}
+:root[data-theme="dark"] .chip:hover {
+  background: hsl(var(--h) 45% 50% / 0.16);
+  border-color: hsl(var(--h) 60% 65% / 0.55);
+  color: hsl(var(--h) 80% 90%);
+}
+:root[data-theme="dark"] .chip i { background: hsl(var(--h) 60% 60% / 0.18); color: hsl(var(--h) 85% 78%); }
+:root[data-theme="dark"] .chip.active {
+  background: linear-gradient(135deg, hsl(var(--h) 62% 52%), hsl(var(--h) 60% 42%));
+  border-color: hsl(var(--h) 60% 55%);
   color: #fff;
 }
-.chip.active i { background: rgba(255, 255, 255, 0.16); color: #fff; }
-:root[data-theme="dark"] .chip.active { background: var(--accent-bg); border-color: var(--accent-bg); }
+:root[data-theme="dark"] .chip.active i { background: rgba(255, 255, 255, 0.2); color: #fff; }
+
+/* "Barchasi" — umumiy tugma, kartochkalar ichida birinchi */
+.chip.chip-all .chip-ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* ============ Groups ============ */
 .groups { display: grid; gap: 24px; }
@@ -857,19 +913,17 @@ button.acard.is-new:hover { border-color: var(--pink); }
 .f-score { --fc: #f97316; }
 
 /* rangli nuqtalar: chip va guruh sarlavhalari */
+/* --h bu yerda berilmaydi: rang ota elementdan (chip yoki inline style) meros olinadi */
 .chip-dot,
 .group-dot {
-  --h: 245;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   flex: none;
   border-radius: 50%;
-  background: hsl(var(--h) 75% 55%);
+  background: hsl(var(--h, 245) 75% 55%);
 }
-.chip { --h: 245; }
-.chip:not(.active) .chip-dot { box-shadow: 0 0 0 3px hsl(var(--h) 75% 55% / 0.18); }
-.chip[data-position=""] .chip-dot { display: none; }
-.group-dot { width: 10px; height: 10px; box-shadow: 0 0 0 4px hsl(var(--h) 75% 55% / 0.18); }
+.chip:not(.active) .chip-dot { box-shadow: 0 0 0 3px hsl(var(--h, 245) 75% 55% / 0.2); }
+.group-dot { width: 10px; height: 10px; box-shadow: 0 0 0 4px hsl(var(--h, 245) 75% 55% / 0.18); }
 .group-sub { color: var(--muted); font-size: 13px; font-weight: 500; }
 
 /* sana guruhlari */
@@ -2050,11 +2104,15 @@ button.pass-field.score-launch strong { white-space: normal; }
   #whoami-name { display: none; }
   .whoami { padding-right: 6px; }
   .brand small { display: none; }
+  .brand strong { white-space: nowrap; }
+  .archive-btn { padding: 0 12px; }
+  .top-actions { gap: 6px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .stat { padding: 12px; }
   .stat b { font-size: 22px; }
   .stat small { display: none; }
-  .chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
+  .chips { display: flex; overflow-x: auto; scrollbar-width: none; padding: 10px; }
+  .chip { flex: 0 0 auto; max-width: 240px; }
   /* telefonda: rasm + ism yonma-yon, ma'lumotlar pastda to'liq kenglikda */
   .ac-body { grid-template-columns: 70px minmax(0, 1fr); gap: 4px 12px; padding: 12px 14px 14px 18px; }
   .ac-main { display: contents; }

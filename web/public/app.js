@@ -700,12 +700,14 @@ function render() {
   const chipCount = (name) => found.filter((item) => (item.position || "Yo‘nalishsiz") === name).length;
   const chipNames = [...positionPool, "Yo‘nalishsiz"].filter((name, index, list) => list.indexOf(name) === index);
   if (activePosition && !chipNames.includes(activePosition)) chipNames.push(activePosition);
+  // Eng ko'p arizali yo'nalishlar birinchi; teng bo'lsa — asl tartibda
   chipsEl.innerHTML = [
-    `<button type="button" class="chip ${activePosition ? "" : "active"}" data-position="">Barchasi <i>${found.length}</i></button>`,
+    `<button type="button" class="chip chip-all ${activePosition ? "" : "active"}" data-position="" style="--h:245"><svg class="chip-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><span class="chip-name">Barcha yo‘nalishlar</span><i>${found.length}</i></button>`,
     ...chipNames
-      .map((name) => ({ name, count: chipCount(name) }))
+      .map((name, order) => ({ name, order, count: chipCount(name) }))
       .filter(({ name, count }) => count || name === activePosition)
-      .map(({ name, count }) => `<button type="button" class="chip ${activePosition === name ? "active" : ""}" data-position="${esc(name)}" style="--h:${positionHue(name === "Yo‘nalishsiz" ? "" : name)}"><span class="chip-dot"></span>${esc(name)} <i>${count}</i></button>`),
+      .sort((a, b) => b.count - a.count || a.order - b.order)
+      .map(({ name, count }) => `<button type="button" class="chip ${activePosition === name ? "active" : ""}" data-position="${esc(name)}" title="${esc(name)} — ${count} ta" style="--h:${positionHue(name === "Yo‘nalishsiz" ? "" : name)}"><span class="chip-dot"></span><span class="chip-name">${esc(name)}</span><i>${count}</i></button>`),
   ].join("");
 
   const countStatus = (key) => dated.filter((item) => interviewKey(item.interviewStatus) === key).length;
