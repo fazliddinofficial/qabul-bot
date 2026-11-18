@@ -329,7 +329,11 @@ bot.on("message", async (ctx) => {
 
   if (!currentQuestion.validate(ctx)) {
     try {
-      await ctx.reply(currentQuestion.errorMsg);
+      // Telefon savolida "ulashish" tugmasi yana ko'rinib tursin
+      await ctx.reply(
+        currentQuestion.errorMsg,
+        currentQuestion.type === "contact" ? { reply_markup: phoneKeyboard } : undefined,
+      );
     } catch (error) {
       console.error("Xato javobi yuborilmadi:", error?.message || error);
     }

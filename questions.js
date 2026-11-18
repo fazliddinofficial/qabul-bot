@@ -225,13 +225,15 @@ export const questions = [
     id: "phone",
     text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Qo'shimcha yoki ota-ona raqamidan farq qilishi shart:",
     type: "contact",
+    // Faqat haqiqiy raqam: "📞 Telefon raqamni ulashish" tugmasi yoki 9–13 ta raqam.
+    // Avval istalgan matn o'tib ketardi (masalan "Ishleydo").
     validate: (ctx) => {
-      return (
-        ctx.message?.contact?.phone_number !== undefined ||
-        ctx.message?.text !== undefined
-      );
+      if (ctx.message?.contact?.phone_number) return true;
+      const phone = ctx.message?.text?.replace(/[\s()-]/g, "") || "";
+      return /^\+?\d{9,13}$/.test(phone);
     },
-    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567 yoki 901234567",
+    errorMsg:
+      "❌ Noto'g'ri telefon raqam! Raqamni yozing (misol: +998901234567 yoki 901234567) yoki pastdagi «📞 Telefon raqamni ulashish» tugmasini bosing.",
     extract: (ctx) => {
       if (ctx.message?.contact?.phone_number) {
         return ctx.message.contact.phone_number;
