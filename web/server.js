@@ -22,6 +22,9 @@ import {
   listStaff,
   recordActivity,
   updateApplicationReview,
+  markApplicationSeen,
+  saveAssessment,
+  ASSESSMENT_COUNT,
   setApplicationFavorite,
   updateStaff,
 } from "../db.js";
@@ -79,9 +82,10 @@ const statusNames = {
   none: "Chaqirilmagan",
   expected: "Chaqirildi",
   called: "Chaqirildi",
-  arrived: "Keldi",
+  arrived: "Zaxirada",
   missed: "Kelmagan",
-  hired: "Ishga kirgan",
+  hired: "Boshqa joyga ishga kirgan",
+  started: "Ishni boshladi",
 };
 
 function shown(key, value) {
@@ -283,6 +287,22 @@ export async function startWeb() {
     res.json({ item });
   });
 
+  app.put("/api/applications/:id/assessment", requireAuth, async (req, res) => {
+    try {
+      const item = await saveAssessment(req.params.id, req.body || {}, req.session.user);
+      if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
+      const answered = item.assessment?.answered || 0;
+      await recordActivity({
+        actor: actorOf(req),
+        action: "Pedagogik baholadi",
+        detail: `${item.fullName || "Ariza"}. ${item.assessmentScore ?? 0} / 100 (${answered}/${ASSESSMENT_COUNT} savol)`,
+      });
+      res.json({ item });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "Baholash saqlanmadi" });
+    }
+  });
+
   app.patch("/api/applications/:id", requireAuth, async (req, res) => {
     try {
       const before = await getApplicationById(req.params.id);
@@ -315,8 +335,9 @@ export async function startWeb() {
   });
 
   app.get("/api/applications/:id", requireAuth, async (req, res) => {
-    const item = await getApplicationById(req.params.id);
+    let item = await getApplicationById(req.params.id);
     if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
+    if (!item.seenAt) item = (await markApplicationSeen(req.params.id)) || item;
     if (req.query.silent !== "1") {
       await recordActivity({
         actor: actorOf(req),

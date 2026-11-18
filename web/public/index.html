@@ -4,14 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Qabul paneli</title>
-    <link rel="stylesheet" href="/styles.css?v=2" />
+    <script>
+      // Mavzuni sahifa chizilishidan oldin qo'yamiz, oq "miltillash" bo'lmasligi uchun
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem("qabul-theme"); } catch (e) {}
+        var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css?v=9" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
+      <div class="login-art" aria-hidden="true">
+        <div class="brand brand-lg"><span class="brand-mark">Q</span><span>Qabul</span></div>
+        <h2>Nomzodlar, suhbatlar va shartnomalar — bitta joyda.</h2>
+        <ul>
+          <li>Botdan kelgan har bir ariza avtomatik shu yerda</li>
+          <li>Suhbat holati, ball va izohlar</li>
+          <li>Hujjatlar va mehnat shartnomasi</li>
+        </ul>
+      </div>
       <form id="login-form" class="login-card">
-        <p class="eyebrow">Qabul boti</p>
-        <h1>Arizalar paneli</h1>
-        <p class="muted">Bot orqali to‘ldirilgan arizalar shu yerda.</p>
+        <div class="login-top">
+          <div class="brand"><span class="brand-mark">Q</span><span>Qabul boti</span></div>
+          <button type="button" class="more-btn theme-toggle" aria-label="Tungi / kunduzgi rejim" title="Tungi / kunduzgi rejim">
+            <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+        </div>
+        <div>
+          <h1>Panelga kirish</h1>
+          <p class="muted">Bot orqali to‘ldirilgan arizalar shu yerda.</p>
+        </div>
         <label>
           Login
           <input name="username" autocomplete="username" required />
@@ -21,88 +50,113 @@
           <input name="password" type="password" autocomplete="current-password" required />
         </label>
         <p id="login-error" class="error"></p>
-        <button type="submit">Kirish</button>
+        <button type="submit" class="primary">Kirish</button>
       </form>
     </section>
 
-    <main id="app-view" class="app hidden">
+    <div id="app-view" class="hidden">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Qabul boti</p>
-          <h1>Qabul qilingan arizalar</h1>
-        </div>
-        <div class="top-actions">
-          <div class="account">
-            <button id="whoami" type="button" class="whoami" aria-expanded="false">
-              <span class="who-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19.2c1.2-3 3.5-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/></svg>
-              </span>
-              <span id="whoami-name"></span>
-            </button>
-            <div class="account-menu">
-              <button id="open-staff" type="button" class="ghost hidden">Hodimlar</button>
-              <button id="open-history" type="button" class="ghost">Tarix</button>
-              <button id="logout" type="button" class="ghost">Chiqish</button>
+        <div class="topbar-inner">
+          <div class="brand">
+            <span class="brand-mark">Q</span>
+            <div>
+              <strong>Qabul paneli</strong>
+              <small id="latest-note">Ishga qabul arizalari</small>
             </div>
           </div>
-          <div class="more">
-            <button id="more-actions" type="button" class="more-btn" aria-label="Import va eksport">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+          <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input id="search" type="search" placeholder="Ism, telefon yoki username bo‘yicha qidirish" />
+          </label>
+          <div class="top-actions">
+            <button type="button" class="more-btn theme-toggle" aria-label="Tungi / kunduzgi rejim" title="Tungi / kunduzgi rejim">
+              <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
             </button>
-            <div class="more-menu">
-              <button id="import-applications" type="button">Import</button>
-              <button id="export-applications" type="button">Eksport</button>
+            <div class="more">
+              <button id="more-actions" type="button" class="more-btn" aria-label="Import va eksport" title="Import / Eksport">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+              </button>
+              <div class="more-menu">
+                <button id="import-applications" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4M5 19h14"/></svg>Import (.csv)
+                </button>
+                <button id="export-applications" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></svg>Eksport (.csv)
+                </button>
+              </div>
+            </div>
+            <div class="account">
+              <button id="whoami" type="button" class="whoami" aria-expanded="false">
+                <span class="who-icon" id="whoami-initials" aria-hidden="true"></span>
+                <span id="whoami-name"></span>
+                <svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+              </button>
+              <div class="account-menu">
+                <button id="open-staff" type="button" class="hidden">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/></svg>Hodimlar
+                </button>
+                <button id="open-history" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Tarix
+                </button>
+                <button id="logout" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5h3a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h10"/></svg>Chiqish
+                </button>
+              </div>
             </div>
           </div>
           <input id="import-file" type="file" accept=".csv,text/csv" hidden />
         </div>
       </header>
 
-      <section id="stats" class="stats"></section>
+      <main class="app">
+        <section id="stats" class="stats" aria-label="Suhbat holatlari"></section>
 
-      <section class="toolbar">
-        <input id="search" type="search" placeholder="Ism, telefon yoki username bo‘yicha qidirish" />
-        <label class="date-field">
-          <input id="date-from" type="date" lang="uz" />
-          <span>Sanadan</span>
-        </label>
-        <label class="date-field">
-          <input id="date-to" type="date" lang="uz" />
-          <span>Sanagacha</span>
-        </label>
-      </section>
+        <section class="filterbar">
+          <label class="date-field">
+            <span class="field-label">Sanadan</span>
+            <input id="date-from" type="date" lang="uz" />
+          </label>
+          <label class="date-field">
+            <span class="field-label">Sanagacha</span>
+            <input id="date-to" type="date" lang="uz" />
+          </label>
+          <label>
+            <span class="field-label">Suhbat</span>
+            <select id="status-filter"></select>
+          </label>
+          <label>
+            <span class="field-label">Saralash</span>
+            <select id="sort-filter">
+              <option value="all">Barchasi</option>
+              <option value="favorite">Izbranniy</option>
+              <option value="position">Yo‘nalish</option>
+              <option value="newest" selected>Yangisidan</option>
+              <option value="oldest">Eskisidan</option>
+              <option value="name">Ism</option>
+            </select>
+          </label>
+          <button id="reset-filters" type="button" class="reset-btn" title="Filtrlarni tozalash">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></svg>
+            Tozalash
+          </button>
+        </section>
 
-      <div class="filters">
-        <label>
-          Yo‘nalish
-          <select id="position-filter"></select>
-        </label>
-        <label>
-          Suhbat
-          <select id="status-filter"></select>
-        </label>
-        <label>
-          Saralash
-          <select id="sort-filter">
-            <option value="all">Barchasi</option>
-            <option value="favorite">Izbranniy</option>
-            <option value="position" selected>Yo‘nalish</option>
-            <option value="newest">Yangisidan</option>
-            <option value="oldest">Eskisidan</option>
-            <option value="name">Ism</option>
-          </select>
-        </label>
-      </div>
-      <section id="list" class="groups"></section>
-    </main>
+        <nav id="position-chips" class="chips" aria-label="Yo‘nalishlar"></nav>
+
+        <section id="list" class="groups"></section>
+      </main>
+    </div>
 
     <dialog id="staff-dialog" class="staff-dialog">
-      <div class="detail-head">
+      <div class="dialog-head">
         <div>
           <p class="eyebrow">Admin</p>
           <h2>Hodimlar</h2>
         </div>
-        <button id="close-staff" type="button" class="ghost">Yopish</button>
+        <button id="close-staff" type="button" class="icon-btn" aria-label="Yopish">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
       </div>
       <form id="staff-form" class="staff-form">
         <input type="hidden" name="id" />
@@ -123,18 +177,20 @@
           <input name="password" type="password" autocomplete="new-password" placeholder="Yangi hodim uchun majburiy" />
         </label>
         <p id="staff-error" class="error"></p>
-        <button type="submit">Saqlash</button>
+        <button type="submit" class="primary">Saqlash</button>
       </form>
       <div id="staff-list" class="staff-list"></div>
     </dialog>
 
     <dialog id="history-dialog" class="staff-dialog">
-      <div class="detail-head">
+      <div class="dialog-head">
         <div>
           <p class="eyebrow">Tarix</p>
           <h2>Kim nima qilgan</h2>
         </div>
-        <button id="close-history" type="button" class="ghost">Yopish</button>
+        <button id="close-history" type="button" class="icon-btn" aria-label="Yopish">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
       </div>
       <div id="history-list" class="history-list"></div>
     </dialog>
@@ -144,7 +200,7 @@
         <button id="back-detail" type="button" class="icon-btn" aria-label="Orqaga">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
         </button>
-        <div>
+        <div class="detail-title">
           <p id="detail-position" class="eyebrow"></p>
           <h2 id="detail-title">Ariza</h2>
         </div>
@@ -158,6 +214,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=9"></script>
   </body>
 </html>

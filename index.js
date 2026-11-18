@@ -555,8 +555,13 @@ async function runBot() {
   }
 }
 
-runBot();
-console.log("🤖 Bot is running!");
+// WEB_ONLY=1 bo'lsa faqat panel ishlaydi: server'dagi bot bilan to'qnashmaslik uchun (409 Conflict)
+if (process.env.WEB_ONLY === "1") {
+  console.log("🌐 Faqat panel rejimi (WEB_ONLY=1): Telegram bot ishga tushirilmadi");
+} else {
+  runBot();
+  console.log("🤖 Bot is running!");
+}
 
 process.once("SIGINT", () => {
   stopping = true;

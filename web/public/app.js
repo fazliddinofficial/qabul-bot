@@ -1,10 +1,20 @@
+import {
+  ASSESSMENT_QUESTIONS,
+  ASSESSMENT_SECTIONS,
+  ASSESSMENT_VERSION,
+  MAX_SCORE,
+  RATING_SCALE,
+  assessmentGrade,
+} from "./assessment.js?v=9";
+
 const loginView = document.querySelector("#login-view");
 const appView = document.querySelector("#app-view");
 const loginForm = document.querySelector("#login-form");
 const loginError = document.querySelector("#login-error");
 const listEl = document.querySelector("#list");
 const searchEl = document.querySelector("#search");
-const positionEl = document.querySelector("#position-filter");
+const chipsEl = document.querySelector("#position-chips");
+const latestNoteEl = document.querySelector("#latest-note");
 const statusEl = document.querySelector("#status-filter");
 const sortEl = document.querySelector("#sort-filter");
 const dateFromEl = document.querySelector("#date-from");
@@ -44,7 +54,7 @@ let allItems = [];
 let knownPositions = [];
 let activePosition = "";
 let activeStatus = "";
-let activeSort = "position";
+let activeSort = "newest";
 
 function esc(value) {
   return String(value ?? "")
@@ -381,6 +391,11 @@ function showApp() {
   appView.classList.remove("hidden");
   const who = [currentUser?.surname, currentUser?.name].filter(Boolean).join(" ");
   document.querySelector("#whoami-name").textContent = who;
+  const initials = [currentUser?.surname, currentUser?.name]
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+  document.querySelector("#whoami-initials").textContent = initials || "?";
   document.querySelector("#open-staff").classList.toggle("hidden", currentUser?.role !== "admin");
 }
 
@@ -408,6 +423,7 @@ function searchedItems() {
 function interviewKey(status) {
   if (status === "arrived") return "arrived";
   if (status === "hired") return "hired";
+  if (status === "started") return "started";
   if (status === "missed") return "missed";
   if (status === "expected" || status === "called") return "expected";
   return "none";
@@ -416,9 +432,10 @@ function interviewKey(status) {
 const interviewLabels = {
   none: "Chaqirilmagan",
   expected: "Chaqirildi",
-  arrived: "Keldi",
+  arrived: "Zaxirada",
   missed: "Kelmagan",
-  hired: "Ishga kirgan",
+  hired: "Boshqa joyga ishga kirgan",
+  started: "Ishni boshladi",
 };
 
 function dateMatch(item) {
@@ -433,10 +450,11 @@ function dateMatch(item) {
 }
 
 function statusMatch(item) {
-  if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired") {
+  if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired" || activeStatus === "started") {
     return interviewKey(item.interviewStatus) === activeStatus;
   }
-  if (activeStatus === "scored") return item.score !== null && item.score !== undefined;
+  if (activeStatus === "scored") return hasScore(item);
+  if (activeStatus === "new") return isFresh(item);
   return true;
 }
 
@@ -473,30 +491,134 @@ function heartHtml(item) {
   return `<span class="fav ${item.favorite ? "on" : ""}" data-fav="${esc(item._id)}" role="button" aria-label="Izbranniy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/></svg></span>`;
 }
 
+// Yangi = panelda hali hech kim ochmagan ariza (seenAt bo'sh)
+function isFresh(item) {
+  return !item.seenAt;
+}
+
+const monthNames = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+
+function dayStart(value) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function daysAgo(value) {
+  const time = new Date(value || 0).getTime();
+  if (!time || !Number.isFinite(time)) return Infinity;
+  return Math.round((dayStart(Date.now()) - dayStart(time)) / 86400000);
+}
+
+// Ro'yxatni sana bo'yicha guruhlash: Bugun, Kecha, Oxirgi 7 kun, keyin oylar
+function dateBucket(value) {
+  const days = daysAgo(value);
+  if (days === Infinity) return { key: "none", label: "Sanasiz", tone: "old" };
+  if (days <= 0) return { key: "today", label: "Bugun", tone: "today" };
+  if (days === 1) return { key: "yesterday", label: "Kecha", tone: "yesterday" };
+  if (days < 7) return { key: "week", label: "Oxirgi 7 kun", tone: "week" };
+  const date = new Date(value);
+  return { key: `m-${date.getFullYear()}-${date.getMonth()}`, label: `${monthNames[date.getMonth()]} ${date.getFullYear()}`, tone: "old" };
+}
+
+function relativeStamp(value) {
+  const time = new Date(value || 0).getTime();
+  if (!time || !Number.isFinite(time)) return "—";
+  const minutes = Math.floor((Date.now() - time) / 60000);
+  const clock = String(formatDate(value)).split(", ")[1] || "";
+  const days = daysAgo(value);
+  if (minutes < 1) return "Hozirgina";
+  if (minutes < 60) return `${minutes} daqiqa oldin`;
+  if (days <= 0) return `Bugun, ${clock}`;
+  if (days === 1) return `Kecha, ${clock}`;
+  if (days < 7) return `${days} kun oldin`;
+  return formatDate(value);
+}
+
+// Har bir yo'nalishga o'z rangi
+const positionHues = [245, 160, 25, 200, 330, 45, 280, 120, 0, 185, 300, 90, 215, 15, 265, 140, 350, 60, 230];
+function positionHue(name) {
+  const index = knownPositions.indexOf(name);
+  if (index >= 0) return positionHues[index % positionHues.length];
+  let hash = 0;
+  for (const ch of String(name || "")) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return hash;
+}
+
+const factIcons = {
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  parent: '<circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/>',
+  birthday: '<rect x="4" y="11" width="16" height="9" rx="2"/><path d="M4 15c2.5 1.5 5.5 1.5 8 0s5.5-1.5 8 0M12 11V7.5"/><path d="M12 3.5c.8.9 1.2 1.6 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.6.4-1.3 1.2-2.2z"/>',
+  language: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 3.5 5.4 3.5 8.5s-1.1 5.9-3.5 8.5c-2.4-2.6-3.5-5.4-3.5-8.5s1.1-5.9 3.5-8.5"/>',
+  interview: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  score: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6z"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+};
+
+function scoreCardHtml(item) {
+  if (item.assessmentScore != null) return `<b>${item.assessmentScore}</b><small>/100</small>`;
+  if (item.score != null && item.score !== "") return `<b>${Math.round(Number(item.score))}</b><small>/10</small>`;
+  return "—";
+}
+
+function scoreDetailHtml(item) {
+  if (item.assessmentScore != null) {
+    const grade = assessmentGrade(item.assessmentScore);
+    return `${item.assessmentScore} / 100 <em class="grade-pill g-${grade.key}">${grade.label}</em>`;
+  }
+  if (item.score != null && item.score !== "") return `${Math.round(Number(item.score))} / 10 <em class="grade-pill">eski baho</em>`;
+  return `<em class="score-cta">Baholashni boshlash →</em>`;
+}
+
+function hasScore(item) {
+  return item.assessmentScore != null || (item.score !== null && item.score !== undefined && item.score !== "");
+}
+
 function cardHtml(item) {
   const person = splitName(item.fullName);
+  const tone = interviewKey(item.interviewStatus);
+  const initials = [person.surname, person.name]
+    .filter((part) => part && part !== "—")
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
   const photo = item.hasPhoto
-    ? `<img class="id-photo" src="/api/applications/${esc(item._id)}/photo" alt="" />`
-    : `<span class="id-photo id-photo-empty">Rasm yo‘q</span>`;
+    ? `<img class="ac-photo" src="/api/applications/${esc(item._id)}/photo" alt="" loading="lazy" />`
+    : `<span class="ac-photo ac-photo-empty">${esc(initials || "?")}</span>`;
+  const score = item.score == null || item.score === "" ? "" : Math.round(Number(item.score));
+  const fact = (kind, label, value, html = "") => `
+    <div class="ac-fact f-${kind}">
+      <span class="ac-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons[kind]}</svg></span>
+      <span class="ac-txt">
+        <span class="ac-k">${label}</span>
+        <span class="ac-v">${html || esc(value || "—")}</span>
+      </span>
+    </div>`;
+  const remove = currentUser?.role === "admin"
+    ? `<span class="ac-icon ac-delete" data-delete="${esc(item._id)}" role="button" aria-label="O‘chirish" title="O‘chirish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></span>`
+    : "";
+  const recency = dateBucket(item.createdAt).tone;
+  const position = item.position || "Yo‘nalishsiz";
   return `
-    <button class="idcard" type="button" data-id="${esc(item._id)}">
-      ${heartHtml(item)}
-      <div class="id-head">
-        <span class="id-logo">QABUL</span>
-        <span class="id-title tone-${interviewKey(item.interviewStatus)}">ARIZA KARTASI<span class="id-added">${esc(formatDate(item.createdAt) || "—")}</span></span>
+    <button class="acard tone-${tone} recent-${recency}${isFresh(item) ? " is-new" : ""}" type="button" data-id="${esc(item._id)}" title="Yuborilgan: ${esc(formatDate(item.createdAt) || "—")}">
+      <div class="ac-top">
+        <span class="status-pill tone-${tone}"><i></i>${esc(interviewLabels[tone])}</span>
+        ${isFresh(item) ? `<span class="new-pill">Yangi</span>` : ""}
+        <time class="ac-time t-${recency}"><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.clock}</svg>${esc(relativeStamp(item.createdAt))}</time>
+        <span class="ac-tools">${remove}${heartHtml(item)}</span>
       </div>
-      <div class="id-main">
-        ${photo}
-        <div class="id-info">
-          <p><span class="id-label">Suhbat</span><span class="id-value">${esc(interviewLabels[interviewKey(item.interviewStatus)])}</span></p>
-          <p><span class="id-label">Suhbat vaqti</span><span class="id-value">${esc(prettyStamp(item.interviewAt) || "—")}</span></p>
-          <p><span class="id-label">Ball</span><span class="id-value">${item.score == null || item.score === "" ? "—" : `${Math.round(Number(item.score))} / 10`}</span></p>
-          <p><span class="id-label">Familiya, ism</span><span class="id-value">${esc(person.surname)} ${esc(person.name)}</span></p>
-          <p><span class="id-label">Telefon</span><span class="id-value">${esc(formatPhone(item.phone) || "—")}</span></p>
-          <p><span class="id-label">Tug‘ilgan sanasi</span><span class="id-meta">${esc(item.birthday || "—")}</span></p>
-          <p><span class="id-label">Yo‘nalish</span><span class="id-meta">${esc(item.position || "—")}</span></p>
-          <p><span class="id-label">Ota-ona telefoni</span><span class="id-meta">${esc(formatPhone(item.parentPhone) || "—")}</span></p>
-          <p><span class="id-label">Til darajasi</span><span class="id-meta">${esc(item.languageLevel || "—")}</span></p>
+      <div class="ac-body">
+        <div class="ac-photo-wrap">${photo}</div>
+        <div class="ac-main">
+          <h3 class="ac-name">${esc(person.surname)} ${esc(person.name === "—" ? "" : person.name)}</h3>
+          <span class="ac-role" style="--h:${positionHue(item.position)}">${esc(position)}</span>
+          <div class="ac-facts">
+            ${fact("phone", "Telefon", formatPhone(item.phone))}
+            ${fact("parent", "Ota-ona tel.", formatPhone(item.parentPhone))}
+            ${fact("birthday", "Tug‘ilgan", item.birthday)}
+            ${fact("language", "Til darajasi", item.languageLevel)}
+            ${fact("interview", "Suhbat vaqti", prettyStamp(item.interviewAt))}
+            ${fact("score", "Ball", "", scoreCardHtml(item))}
+          </div>
         </div>
       </div>
     </button>`;
@@ -526,55 +648,77 @@ function render() {
     counts.set(key, (counts.get(key) || 0) + 1);
   }
 
-  const directions = groupOrder(found).filter((name) => counts.get(name));
+  const directions = [...groupOrder(found), "Yo‘nalishsiz"].filter((name) => counts.get(name));
   const directionCount = new Set(allItems.map((item) => item.position).filter(Boolean)).size;
   const latest = allItems[0] ? formatDate(allItems[0].createdAt) : "—";
 
-  statsEl.innerHTML = `
-    <div class="stat"><span>Jami ariza</span><b>${allItems.length}</b></div>
-    <div class="stat"><span>Yo‘nalishlar</span><b>${directionCount}</b></div>
-    <div class="stat"><span>So‘nggi ariza</span><b style="font-size:18px">${esc(latest)}</b></div>
-  `;
+  if (latestNoteEl) latestNoteEl.textContent = `So‘nggi ariza: ${latest}`;
+
+  const searchedDated = searchedItems().filter(dateMatch);
+  const tileCount = (key) => searchedDated.filter((item) => interviewKey(item.interviewStatus) === key).length;
+  const tiles = [
+    ["", "Jami arizalar", searchedDated.length, `${directionCount} ta yo‘nalish`],
+    ["new", "Yangi", searchedDated.filter(isFresh).length, "Hali ochilmagan"],
+    ["none", "Chaqirilmagan", tileCount("none"), "Javob kutmoqda"],
+    ["expected", "Chaqirildi", tileCount("expected"), "Suhbatga"],
+    ["arrived", "Zaxirada", tileCount("arrived"), "Keyinroq olinadi"],
+    ["hired", "Boshqa joyda", tileCount("hired"), "Boshqa joyga ishga kirgan"],
+    ["started", "Ishni boshladi", tileCount("started"), "Ish boshlagan"],
+  ];
+  // Eski "Kelmagan" yozuvlari bo'lsa ham ko'rinib tursin
+  if (tileCount("missed")) tiles.push(["missed", "Kelmagan", tileCount("missed"), "Eski holat"]);
+  statsEl.innerHTML = tiles
+    .map(([key, label, value, hint]) => `
+      <button type="button" class="stat tone-${key || "all"} ${activeStatus === key ? "active" : ""}" data-status="${key}">
+        <span class="stat-label"><i></i>${label}</span>
+        <b>${value}</b>
+        <small>${hint}</small>
+      </button>`)
+    .join("");
 
   const positionPool = groupOrder(allItems);
-  fillSelect(
-    positionEl,
-    [
-      { value: "", label: "Barchasi" },
-      ...positionPool
-        .map((name) => {
-          const count = dated.filter((item) => item.position === name).length;
-          return count ? { value: name, label: `${name} (${count})` } : null;
-        })
-        .filter(Boolean),
-    ],
-    activePosition,
-  );
+  const chipCount = (name) => found.filter((item) => (item.position || "Yo‘nalishsiz") === name).length;
+  const chipNames = [...positionPool, "Yo‘nalishsiz"].filter((name, index, list) => list.indexOf(name) === index);
+  if (activePosition && !chipNames.includes(activePosition)) chipNames.push(activePosition);
+  chipsEl.innerHTML = [
+    `<button type="button" class="chip ${activePosition ? "" : "active"}" data-position="">Barchasi <i>${found.length}</i></button>`,
+    ...chipNames
+      .map((name) => ({ name, count: chipCount(name) }))
+      .filter(({ name, count }) => count || name === activePosition)
+      .map(({ name, count }) => `<button type="button" class="chip ${activePosition === name ? "active" : ""}" data-position="${esc(name)}" style="--h:${positionHue(name === "Yo‘nalishsiz" ? "" : name)}"><span class="chip-dot"></span>${esc(name)} <i>${count}</i></button>`),
+  ].join("");
 
   const countStatus = (key) => dated.filter((item) => interviewKey(item.interviewStatus) === key).length;
-  const scoredCount = dated.filter((item) => item.score !== null && item.score !== undefined).length;
+  const scoredCount = dated.filter(hasScore).length;
   fillSelect(
     statusEl,
     [
       { value: "", label: "Barchasi" },
+      { value: "new", label: `Yangi, ochilmagan (${dated.filter(isFresh).length})` },
       { value: "none", label: `Chaqirilmagan (${countStatus("none")})` },
       { value: "expected", label: `Chaqirildi (${countStatus("expected")})` },
-      { value: "arrived", label: `Keldi (${countStatus("arrived")})` },
-      { value: "missed", label: `Kelmagan (${countStatus("missed")})` },
-      { value: "hired", label: `Ishga kirgan (${countStatus("hired")})` },
+      { value: "arrived", label: `Zaxirada (${countStatus("arrived")})` },
+      { value: "hired", label: `Boshqa joyga ishga kirgan (${countStatus("hired")})` },
+      { value: "started", label: `Ishni boshladi (${countStatus("started")})` },
+      ...(countStatus("missed") ? [{ value: "missed", label: `Kelmagan (${countStatus("missed")})` }] : []),
       { value: "scored", label: `Ball qo‘yilgan (${scoredCount})` },
     ],
     activeStatus,
   );
 
   let visible = activePosition
-    ? found.filter((item) => item.position === activePosition)
+    ? found.filter((item) => (item.position || "Yo‘nalishsiz") === activePosition)
     : found;
   if (activeSort === "favorite") visible = visible.filter((item) => item.favorite);
   const sort = activeSort;
 
   if (!visible.length) {
-    listEl.innerHTML = `<p class="empty">Hozircha bu bo‘yicha ariza yo‘q. Botdan yangi ariza kelganda shu yerda ko‘rinadi.</p>`;
+    listEl.innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l2 3h4l2-3h4M5 13l2-7h10l2 7v5H5z"/></svg>
+        <strong>Bu bo‘yicha ariza topilmadi</strong>
+        <p>Filtrlarni o‘zgartiring yoki botdan yangi ariza kelishini kuting.</p>
+      </div>`;
     return;
   }
 
@@ -589,12 +733,43 @@ function render() {
         return `
           <section class="group">
             <div class="group-head">
+              <span class="group-dot" style="--h:${positionHue(name === "Yo‘nalishsiz" ? "" : name)}"></span>
               <h2>${esc(name)}</h2>
               <span class="badge">${counts.get(name)} ta</span>
             </div>
             <div class="cards">${cards}</div>
           </section>`;
       })
+      .join("");
+    return;
+  }
+
+  if (sort === "newest" || sort === "oldest") {
+    const sorted = [...visible].sort(byDate(sort));
+    const buckets = [];
+    for (const item of sorted) {
+      const bucket = dateBucket(item.createdAt);
+      const last = buckets[buckets.length - 1];
+      if (last && last.key === bucket.key) last.items.push(item);
+      else buckets.push({ ...bucket, items: [item] });
+    }
+    const bucketIcon = {
+      today: '<path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.3 6.3 4.9 4.9M19.1 19.1l-1.4-1.4M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/><circle cx="12" cy="12" r="4"/>',
+      yesterday: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+      week: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+      old: '<path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/>',
+    };
+    listEl.innerHTML = buckets
+      .map((bucket) => `
+        <section class="group bucket bucket-${bucket.tone}">
+          <div class="group-head">
+            <span class="bucket-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${bucketIcon[bucket.tone] || bucketIcon.old}</svg></span>
+            <h2>${esc(bucket.label)}</h2>
+            <span class="badge">${bucket.items.length} ta</span>
+            ${activePosition ? `<span class="group-sub">${esc(activePosition)}</span>` : ""}
+          </div>
+          <div class="cards">${bucket.items.map(cardHtml).join("")}</div>
+        </section>`)
       .join("");
     return;
   }
@@ -623,24 +798,282 @@ async function loadApplications() {
   render();
 }
 
+const svgPaths = {
+  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  calendarCheck: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M9 15l2 2 4-4"/>',
+  calendarEnd: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M10 13l4 4M14 13l-4 4"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  cash: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 12h.01M17 12h.01"/>',
+  star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6z"/>',
+  cake: '<rect x="4" y="11" width="16" height="9" rx="2"/><path d="M4 15c2.5 1.5 5.5 1.5 8 0s5.5-1.5 8 0M12 11V7.5"/><path d="M12 3.5c.8.9 1.2 1.6 1.2 2.2a1.2 1.2 0 0 1-2.4 0c0-.6.4-1.3 1.2-2.2z"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  users: '<circle cx="9" cy="8" r="3"/><path d="M3.5 19c.9-2.8 3-4.2 5.5-4.2s4.6 1.4 5.5 4.2M16 5.5a3 3 0 0 1 0 5.6M17.5 14.9c1.6.6 2.6 1.9 3 4.1"/>',
+  map: '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/>',
+  heart: '<path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/>',
+  send: '<path d="m21 4-18 7 7 2 2 7 3-5"/><path d="m10 13 11-9"/>',
+  cap: '<path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5M22 9v6"/>',
+  award: '<circle cx="12" cy="9" r="5"/><path d="m8.5 13-1.5 8 5-3 5 3-1.5-8"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 3.5 5.4 3.5 8.5s-1.1 5.9-3.5 8.5c-2.4-2.6-3.5-5.4-3.5-8.5s1.1-5.9 3.5-8.5"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  hourglass: '<path d="M6 3h12M6 21h12M7 3v3a5 5 0 0 0 10 0V3M7 21v-3a5 5 0 0 1 10 0v3"/>',
+  wallet: '<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V6a2 2 0 0 1 2-2h11v3"/><path d="M16 13.5h.01"/>',
+  trend: '<path d="m3 17 6-6 4 4 8-8M15 7h6v6"/>',
+  inbox: '<path d="M4 13h4l2 3h4l2-3h4M5 13l2-7h10l2 7v6H5z"/>',
+  building: '<path d="M4 21V5l8-2 8 2v16M4 21h16M9 9h.01M15 9h.01M9 13h.01M15 13h.01M10 21v-4h4v4"/>',
+  pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M3 13h18"/>',
+  megaphone: '<path d="M4 10v4h3l7 5V5L7 10z"/><path d="M18 9a4 4 0 0 1 0 6"/>',
+  hash: '<path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.3-4 4.3-6 8-6s6.7 2 8 6"/>',
+  idcard: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.5 1.6-2.2 3-2.2s2.4.7 3 2.2M14 10h4M14 14h3"/>',
+  shield: '<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/>',
+  coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+  file: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/>',
+};
+
+// Har bir maydon: [ikonka, rang]. Kalit — maydon nomi yoki sarlavhasi
+const fieldLook = {
+  interviewStatus: ["chat", "var(--c)"],
+  interviewAt: ["calendar", "#f59e0b"],
+  workStart: ["flag", "#14b8a6"],
+  agreedSalary: ["cash", "#10b981"],
+  score: ["star", "#f97316"],
+  "Tug‘ilgan sana": ["cake", "#ec4899"],
+  birthday: ["cake", "#ec4899"],
+  phone: ["phone", "#10b981"],
+  parentPhone: ["users", "#3b82f6"],
+  "Millati": ["map", "#0ea5e9"],
+  "Oilaviy holat": ["heart", "#f43f5e"],
+  "Telegram": ["send", "#229ed9"],
+  "Ma’lumot": ["cap", "#6366f1"],
+  "Tugatish yili": ["award", "#8b5cf6"],
+  "Til darajasi": ["globe", "#a855f7"],
+  "Kompyuter": ["monitor", "#06b6d4"],
+  workHours: ["clock", "#f59e0b"],
+  workDuration: ["hourglass", "#eab308"],
+  "Oxirgi oylik": ["wallet", "#84cc16"],
+  "Kutilayotgan oylik": ["trend", "#22c55e"],
+  "Yuborilgan vaqt": ["inbox", "#6366f1"],
+  "O‘quv muassasasi": ["building", "#3b82f6"],
+  "Manzil": ["pin", "#ef4444"],
+  address: ["pin", "#ef4444"],
+  "Oldingi ish": ["briefcase", "#f97316"],
+  "E’lon manbasi": ["megaphone", "#ec4899"],
+  "Telegram ID": ["hash", "#229ed9"],
+  note: ["pencil", "#eab308"],
+  contractNumber: ["hash", "#6366f1"],
+  hiredAt: ["calendarCheck", "#10b981"],
+  contractTerm: ["hourglass", "#eab308"],
+  contractEnd: ["calendarEnd", "#ef4444"],
+  department: ["building", "#3b82f6"],
+  probation: ["flask", "#a855f7"],
+  fullName: ["user", "#6366f1"],
+  fatherName: ["users", "#8b5cf6"],
+  passportSeries: ["idcard", "#0ea5e9"],
+  passportIssued: ["calendar", "#f59e0b"],
+  passportIssuer: ["shield", "#14b8a6"],
+  jshshir: ["hash", "#f43f5e"],
+  position: ["briefcase", "#f97316"],
+  perStudentPay: ["coins", "#22c55e"],
+};
+
+function fieldIcon(name) {
+  const look = fieldLook[name];
+  if (!look) return "";
+  return `<i class="pf-ico" style="--fc:${look[1]}"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths[look[0]]}</svg></i>`;
+}
+
+function fieldStyle(name) {
+  const look = fieldLook[name];
+  return look ? ` style="--fc:${look[1]}"` : "";
+}
+
+function assessmentPageHtml(item) {
+  const saved = item.assessment || {};
+  const answers = Array.isArray(saved.answers) ? saved.answers : [];
+  const notes = Array.isArray(saved.notes) ? saved.notes : [];
+  let index = 0;
+  const sections = ASSESSMENT_SECTIONS.map((section, sectionIndex) => {
+    const questions = section.questions.map((question) => {
+      const i = index++;
+      const value = answers[i] ?? null;
+      return `
+        <div class="q${value === null ? "" : " done"}" data-q="${i}">
+          <div class="q-head">
+            <span class="q-num">${i + 1}</span>
+            <div class="q-body">
+              <p class="q-text">${esc(question.text)}</p>
+              <details class="q-hint"><summary>Yaxshi javobda nima bo‘lishi kerak?</summary><p>${esc(question.hint)}</p></details>
+            </div>
+          </div>
+          <div class="q-rate" role="group" aria-label="${i + 1}-savol bahosi">
+            ${RATING_SCALE.map((rate) => `<button type="button" class="r r-${rate.value}${value === rate.value ? " on" : ""}" data-v="${rate.value}"><b>${rate.value}</b><small>${rate.label}</small></button>`).join("")}
+          </div>
+          <input class="q-note" type="text" maxlength="300" placeholder="Izoh (ixtiyoriy)" value="${esc(notes[i] || "")}" />
+        </div>`;
+    }).join("");
+    return `
+      <section class="assess-cat" style="--cc:${section.color}">
+        <h3><span class="cat-num">${sectionIndex + 1}</span><span class="cat-title">${esc(section.title)}</span><em class="cat-score"></em></h3>
+        ${questions}
+      </section>`;
+  }).join("");
+  const by = saved.byName ? `Oxirgi baholagan: ${esc(saved.byName)}, ${esc(formatDate(saved.at))}` : "Hali baholanmagan";
+  return `
+    <article class="assess-page hidden" id="assess-page">
+      <div class="assess-head">
+        <button type="button" class="icon-btn" id="close-assess" aria-label="Orqaga">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
+        </button>
+        <div class="assess-title">
+          <p class="eyebrow">Pedagogik suhbat</p>
+          <h2>20 ta savol · ${MAX_SCORE} ballik baho</h2>
+          <p class="assess-by" id="assess-by">${by}</p>
+        </div>
+        <div class="assess-score" id="assess-score">
+          <div class="ring"><div><b id="assess-total">0</b><small>/ ${MAX_SCORE}</small></div></div>
+          <div class="assess-verdict">
+            <strong id="assess-grade">—</strong>
+            <span id="assess-advice"></span>
+            <span id="assess-count" class="muted"></span>
+          </div>
+        </div>
+      </div>
+      <p class="assess-help">Savolni nomzodga bering, javobini tinglang va <b>0–5</b> ball qo‘ying. Har bir savol 5 ball, jami ${MAX_SCORE} ball — natija o‘zi hisoblanadi. Bahoni bekor qilish uchun tanlangan tugmani yana bosing.</p>
+      ${sections}
+      <div class="assess-foot">
+        <span id="assess-state" class="assess-state">O‘zgarish yo‘q</span>
+        <button type="button" id="assess-save">Bahoni saqlash</button>
+      </div>
+    </article>`;
+}
+
+function bindAssessment(item, id) {
+  const page = detailBody.querySelector("#assess-page");
+  const passCard = detailBody.querySelector("#pass-card");
+  if (!page || !passCard) return;
+  const count = ASSESSMENT_QUESTIONS.length;
+  const saved = item.assessment || {};
+  const state = {
+    answers: Array.from({ length: count }, (_, i) =>
+      Array.isArray(saved.answers) && saved.answers[i] != null ? Number(saved.answers[i]) : null),
+    notes: Array.from({ length: count }, (_, i) => (Array.isArray(saved.notes) ? String(saved.notes[i] || "") : "")),
+  };
+  let dirty = false;
+  const stateEl = page.querySelector("#assess-state");
+  const setDirty = (value, text) => {
+    dirty = value;
+    stateEl.textContent = text || (value ? "Saqlanmagan o‘zgarishlar bor" : "O‘zgarish yo‘q");
+    stateEl.classList.toggle("warn", value);
+    stateEl.classList.toggle("ok", !value && Boolean(text));
+  };
+
+  function paint() {
+    const answered = state.answers.filter((value) => value !== null).length;
+    const total = state.answers.reduce((sum, value) => sum + (value || 0), 0);
+    const grade = assessmentGrade(answered ? total : null);
+    page.querySelector("#assess-total").textContent = String(total);
+    page.querySelector("#assess-grade").textContent = grade.label;
+    page.querySelector("#assess-advice").textContent = answered ? grade.advice : "";
+    page.querySelector("#assess-count").textContent = `${answered} / ${count} savol baholandi`;
+    const box = page.querySelector("#assess-score");
+    box.dataset.grade = grade.key;
+    box.style.setProperty("--p", String((total / MAX_SCORE) * 100));
+    page.querySelectorAll(".assess-cat").forEach((cat) => {
+      const indexes = [...cat.querySelectorAll(".q")].map((q) => Number(q.dataset.q));
+      const sum = indexes.reduce((acc, i) => acc + (state.answers[i] || 0), 0);
+      const done = indexes.filter((i) => state.answers[i] !== null).length;
+      cat.querySelector(".cat-score").textContent = `${sum} / ${indexes.length * 5}${done < indexes.length ? ` · ${done}/${indexes.length}` : ""}`;
+    });
+  }
+  paint();
+
+  page.addEventListener("click", (event) => {
+    const button = event.target.closest(".q-rate [data-v]");
+    if (!button) return;
+    const question = button.closest(".q");
+    const i = Number(question.dataset.q);
+    const value = Number(button.dataset.v);
+    state.answers[i] = state.answers[i] === value ? null : value;
+    question.querySelectorAll("[data-v]").forEach((other) => {
+      other.classList.toggle("on", Number(other.dataset.v) === state.answers[i]);
+    });
+    question.classList.toggle("done", state.answers[i] !== null);
+    setDirty(true);
+    paint();
+  });
+  page.addEventListener("input", (event) => {
+    const note = event.target.closest(".q-note");
+    if (!note) return;
+    state.notes[Number(note.closest(".q").dataset.q)] = note.value;
+    setDirty(true);
+  });
+
+  detailBody.querySelector("#open-assess")?.addEventListener("click", () => {
+    passCard.classList.add("hidden");
+    page.classList.remove("hidden");
+    page.scrollTop = 0;
+  });
+  page.querySelector("#close-assess").addEventListener("click", () => {
+    if (dirty && !confirm("Baholar saqlanmadi. Saqlamasdan chiqasizmi?")) return;
+    page.classList.add("hidden");
+    passCard.classList.remove("hidden");
+  });
+  page.querySelector("#assess-save").addEventListener("click", async () => {
+    const saveButton = page.querySelector("#assess-save");
+    saveButton.disabled = true;
+    const res = await fetch(`/api/applications/${id}/assessment`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: ASSESSMENT_VERSION, answers: state.answers, notes: state.notes }),
+    });
+    saveButton.disabled = false;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || "Baholash saqlanmadi");
+      return;
+    }
+    const index = allItems.findIndex((entry) => entry._id === id);
+    if (index >= 0) allItems[index] = { ...allItems[index], ...data.item };
+    const scoreView = detailBody.querySelector("#score-view");
+    if (scoreView) scoreView.innerHTML = scoreDetailHtml(data.item);
+    const who = detailBody.querySelector("#who-ran");
+    if (who) who.textContent = `Suhbat o‘tkazuvchi: ${staffMark(data.item.interviewerName) || "hali belgilanmagan"}`;
+    const by = page.querySelector("#assess-by");
+    if (by && data.item.assessment?.byName) {
+      by.textContent = `Oxirgi baholagan: ${data.item.assessment.byName}, ${formatDate(data.item.assessment.at)}`;
+    }
+    setDirty(false, "Saqlandi ✓");
+    render();
+  });
+}
+
 async function openDetail(id, silent = false) {
   const res = await fetch(`/api/applications/${id}${silent ? "?silent=1" : ""}`);
   if (!res.ok) return;
   const { item } = await res.json();
   const index = allItems.findIndex((entry) => entry._id === id);
+  const wasNew = index >= 0 && isFresh(allItems[index]);
   if (index >= 0) allItems[index] = { ...allItems[index], ...item };
+  if (wasNew && !isFresh(allItems[index])) render();
   detailTitle.textContent = item.fullName || "Ariza";
   detailPosition.textContent = item.position || "Yo‘nalishsiz";
 
   const person = splitName(item.fullName);
   const shown = (value) => (value === 0 || value ? esc(value) : "—");
   const block = (label, value, wide = false) => `
-    <div class="pass-field ${wide ? "wide" : ""}">
+    <div class="pass-field ${wide ? "wide" : ""}${fieldLook[label] ? " has-ico" : ""}"${fieldStyle(label)}>
+      ${fieldIcon(label)}
       <span>${label}</span>
       <strong>${shown(value)}</strong>
     </div>`;
   const editCard = (key, label, display, control, askSave = false) => `
-    <div class="pass-field edit-card" data-edit="${key}">
+    <div class="pass-field edit-card${fieldLook[key] ? " has-ico" : ""}" data-edit="${key}"${fieldStyle(key)}>
+      ${fieldIcon(key)}
       <span>${label}</span>
       <strong class="edit-view">${shown(display)}</strong>
       <div class="edit-box">
@@ -658,6 +1091,13 @@ async function openDetail(id, silent = false) {
     ["certificate", "Sertifikat", item.hasCertificate, item.certificateName, item.certificateType],
     ["signedContract", "Imzolangan shartnoma", item.hasSignedContract, item.signedContractName, item.signedContractType, "application/pdf,.pdf"],
   ];
+  const docLook = {
+    passportFront: ["idcard", "#0ea5e9"],
+    passportBack: ["idcard", "#14b8a6"],
+    diploma: ["cap", "#6366f1"],
+    certificate: ["award", "#f59e0b"],
+    signedContract: ["file", "#10b981"],
+  };
   const docHtml = docSlots.map(([slot, label, has, fileName, type, accept]) => {
     const url = `/api/applications/${esc(item._id)}/docs/${slot}`;
     const fallback = String(type || "").includes("pdf") ? "hujjat.pdf" : "rasm.jpg";
@@ -671,8 +1111,8 @@ async function openDetail(id, silent = false) {
         }</div>`
       : `<div class="doc-empty">Bo‘sh</div>`;
     return `
-      <div class="doc-slot" data-doc="${slot}">
-        <span>${label}</span>
+      <div class="doc-slot" data-doc="${slot}" style="--fc:${docLook[slot][1]}">
+        <span><i class="pf-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths[docLook[slot][0]]}</svg></i>${label}</span>
         ${preview}
         ${has ? `<p class="doc-name" title="${esc(name)}">${esc(name)}</p>` : ""}
         <div class="doc-actions">
@@ -683,7 +1123,7 @@ async function openDetail(id, silent = false) {
       </div>`;
   }).join("");
   detailBody.innerHTML = `
-    <article class="pass" id="pass-card">
+    <article class="pass tone-${interview}" id="pass-card">
       <div class="pass-top">
       <div class="pass-photo-col">
         ${
@@ -696,32 +1136,31 @@ async function openDetail(id, silent = false) {
           <div class="pass-who">
             <p class="pass-kicker">Familiya · Ism · Otasining ismi</p>
             <h2 class="pass-name">${esc(person.surname)} ${esc(person.name)} ${esc(person.patronymic)}</h2>
-            <p class="pass-role">${esc(item.position || "Yo‘nalishsiz")}</p>
-            <p class="pass-interviewer" id="who-called">Suhbatga chaqirgan: ${esc(staffMark(item.callerName) || "hali belgilanmagan")}</p>
-            <p class="pass-interviewer" id="who-ran">Suhbat o‘tkazuvchi: ${esc(staffMark(item.interviewerName) || "hali belgilanmagan")}</p>
+            <span class="pass-role" style="--h:${positionHue(item.position)}">${esc(item.position || "Yo‘nalishsiz")}</span>
+            <div class="pass-person"><i class="pi-ico" style="--fc:#3b82f6"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.phone}</svg></i><p class="pass-interviewer" id="who-called">Suhbatga chaqirgan: ${esc(staffMark(item.callerName) || "hali belgilanmagan")}</p></div>
+            <div class="pass-person"><i class="pi-ico" style="--fc:#8b5cf6"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.user}</svg></i><p class="pass-interviewer" id="who-ran">Suhbat o‘tkazuvchi: ${esc(staffMark(item.interviewerName) || "hali belgilanmagan")}</p></div>
           </div>
-          <button type="button" class="contract-launch" id="open-contract">Shartnomani ko‘rish</button>
+          <button type="button" class="contract-launch" id="open-contract"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg>Shartnomani ko‘rish</button>
           ${editCard(
             "interviewStatus",
             "Suhbat",
             interviewLabels[interview],
             `<div class="choice mini">
-              <button type="button" data-call="none">Chaqirilmagan</button>
-              <button type="button" data-call="expected">Chaqirildi</button>
-              <button type="button" data-call="arrived">Keldi</button>
-              <button type="button" data-call="missed">Kelmagan</button>
-              <button type="button" data-call="hired">Ishga kirgan</button>
+              <button type="button" class="tone-none" data-call="none"><i></i>Chaqirilmagan</button>
+              <button type="button" class="tone-expected" data-call="expected"><i></i>Chaqirildi</button>
+              <button type="button" class="tone-arrived" data-call="arrived"><i></i>Zaxirada</button>
+              <button type="button" class="tone-hired" data-call="hired"><i></i>Boshqa joyga ishga kirgan</button>
+              <button type="button" class="tone-started" data-call="started"><i></i>Ishni boshladi</button>
             </div>`,
           )}
           ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="datetime-local" value="${esc(item.interviewAt || "")}" />`)}
           ${editCard("workStart", "Ish boshlash", prettyStamp(item.workStart), `<input name="workStart" type="date" value="${esc(item.workStart || "")}" />`)}
           ${editCard("agreedSalary", "Kelishilgan oylik", formatSum(item.agreedSalary), `<input name="agreedSalary" value="${esc(formatSum(item.agreedSalary))}" placeholder="5 000 000" />`)}
-          ${editCard(
-            "score",
-            "Ball",
-            item.score == null || item.score === "" ? "" : `${Math.round(Number(item.score))} / 10`,
-            `<input name="score" type="number" min="1" max="10" step="1" value="${item.score == null || item.score === "" ? "" : Math.round(Number(item.score))}" placeholder="1–10" />`,
-          )}
+          <button type="button" class="pass-field has-ico score-launch" id="open-assess"${fieldStyle("score")} title="20 ta pedagogik savol bo‘yicha baholash">
+            ${fieldIcon("score")}
+            <span>Ball · 20 savol</span>
+            <strong id="score-view">${scoreDetailHtml(item)}</strong>
+          </button>
           <div class="pass-next">
             ${block("Tug‘ilgan sana", item.birthday)}
             ${editCard("phone", "Telefon", formatPhone(item.phone), `<input name="phone" value="${esc(formatPhone(item.phone))}" placeholder="99 999 99 99" />`, true)}
@@ -773,7 +1212,8 @@ async function openDetail(id, silent = false) {
         ${editCard("contractNumber", "Shartnoma raqami", item.contractNumber, `<input name="contractNumber" value="${esc(item.contractNumber || "")}" maxlength="40" placeholder="15654" />`, true)}
         ${editCard("hiredAt", "Ishga qabul qilingan kun", uzContractDate(item.hiredAt), `<div class="hire-date"><input name="hiredAt" value="${esc(uzContractDate(item.hiredAt))}" placeholder="2026-yil 15-noyabr" /><input class="hire-cal" type="date" value="${esc(String(item.hiredAt || "").slice(0, 10))}" aria-label="Kalendar" /></div>`, true)}
         ${editCard("contractTerm", "Shartnoma muddati (oy)", normalizeContractMonths(item.contractTerm || ""), `<input name="contractTerm" value="${esc(normalizeContractMonths(item.contractTerm || ""))}" placeholder="1" />`, true)}
-        <div class="pass-field" id="contract-end-card">
+        <div class="pass-field has-ico" id="contract-end-card"${fieldStyle("contractEnd")}>
+          ${fieldIcon("contractEnd")}
           <span>Shartnoma tugash sanasi</span>
           <strong id="contract-end-view">${shown(uzContractDate(addContractTerm(String(item.hiredAt || "").slice(0, 10), item.contractTerm) || item.contractEnd))}</strong>
         </div>
@@ -797,6 +1237,7 @@ async function openDetail(id, silent = false) {
       </section>
       <button type="button" class="contract-make" id="make-contract">Shartnomani tayyorlash</button>
     </article>
+    ${assessmentPageHtml(item)}
     ${
       item.hasPhoto
         ? `<div id="photo-lightbox" class="lightbox hidden"><button type="button" class="icon-btn" id="close-photo" aria-label="Yopish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button><img src="${photoUrl}" alt="" /></div>`
@@ -851,8 +1292,12 @@ async function openDetail(id, silent = false) {
 
   const interviewCard = detailBody.querySelector('[data-edit="interviewStatus"]');
   function paintInterview(card) {
-    card.classList.remove("tone-none", "tone-expected", "tone-arrived", "tone-missed", "tone-hired");
-    card.classList.add(`tone-${interviewKey(draft.interviewStatus)}`);
+    const tones = ["tone-none", "tone-expected", "tone-arrived", "tone-missed", "tone-hired", "tone-started"];
+    const pass = detailBody.querySelector("#pass-card");
+    for (const el of [card, pass].filter(Boolean)) {
+      el.classList.remove(...tones);
+      el.classList.add(`tone-${interviewKey(draft.interviewStatus)}`);
+    }
   }
   if (interviewCard) paintInterview(interviewCard);
 
@@ -1094,6 +1539,8 @@ async function openDetail(id, silent = false) {
     await openDetail(id, true);
   });
 
+  bindAssessment(item, id);
+
   detailBody.querySelector("#open-contract")?.addEventListener("click", () => {
     detailBody.querySelector("#pass-card")?.classList.add("hidden");
     detailBody.querySelector("#contract-page")?.classList.remove("hidden");
@@ -1237,7 +1684,10 @@ document.querySelector("#export-applications").addEventListener("click", () => {
       columns
         .map(([key]) => {
           if (key === "interviewStatus") return cell(interviewLabels[interviewKey(item.interviewStatus)] || "");
-          if (key === "score") return cell(item.score == null || item.score === "" ? "" : `${item.score} / 10`);
+          if (key === "score") {
+            if (item.assessmentScore != null) return cell(`${item.assessmentScore} / 100`);
+            return cell(item.score == null || item.score === "" ? "" : `${item.score} / 10`);
+          }
           if (key === "createdAt") return cell(formatDate(item.createdAt));
           if (key === "username") return cell(item.username ? `@${item.username}` : "");
           return cell(item[key]);
@@ -1393,8 +1843,29 @@ dateToEl.addEventListener("change", () => {
   syncDateField(dateToEl);
   render();
 });
-positionEl.addEventListener("change", () => {
-  activePosition = positionEl.value;
+chipsEl.addEventListener("click", (event) => {
+  const chip = event.target.closest("[data-position]");
+  if (!chip) return;
+  activePosition = chip.dataset.position;
+  render();
+});
+statsEl.addEventListener("click", (event) => {
+  const tile = event.target.closest("[data-status]");
+  if (!tile) return;
+  const key = tile.dataset.status;
+  activeStatus = activeStatus === key ? "" : key;
+  render();
+});
+document.querySelector("#reset-filters").addEventListener("click", () => {
+  activePosition = "";
+  activeStatus = "";
+  activeSort = "newest";
+  sortEl.value = "newest";
+  searchEl.value = "";
+  dateFromEl.value = "";
+  dateToEl.value = "";
+  syncDateField(dateFromEl);
+  syncDateField(dateToEl);
   render();
 });
 statusEl.addEventListener("change", () => {
@@ -1409,9 +1880,29 @@ listEl.addEventListener("click", (event) => {
     toggleFavorite(fav.dataset.fav);
     return;
   }
+  const remove = event.target.closest("[data-delete]");
+  if (remove) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteApplication(remove.dataset.delete);
+    return;
+  }
   const card = event.target.closest("[data-id]");
   if (card) openDetail(card.dataset.id);
 });
+
+async function deleteApplication(id) {
+  const item = allItems.find((entry) => entry._id === id);
+  if (!confirm(`${item?.fullName || "Bu ariza"} o‘chirib tashlansinmi?`)) return;
+  const res = await fetch(`/api/applications/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    alert(data.error || "O‘chirilmadi");
+    return;
+  }
+  allItems = allItems.filter((entry) => entry._id !== id);
+  render();
+}
 
 async function toggleFavorite(id) {
   const item = allItems.find((entry) => entry._id === id);
@@ -1543,6 +2034,14 @@ staffList.addEventListener("click", async (event) => {
   const res = await fetch(`/api/staff/${remove.dataset.deleteStaff}`, { method: "DELETE" });
   if (!res.ok) return;
   await loadStaff();
+});
+
+document.querySelectorAll(".theme-toggle").forEach((button) => {
+  button.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("qabul-theme", next); } catch { /* xotira yopiq bo'lsa ham ishlayveradi */ }
+  });
 });
 
 const me = await fetch("/api/me");

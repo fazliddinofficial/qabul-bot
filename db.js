@@ -42,6 +42,9 @@ const applicationSchema = new mongoose.Schema(
     foundResource: { type: String, default: "" },
     interviewStatus: { type: String, default: "none" },
     score: { type: Number, default: null },
+    // Pedagogik suhbat (20 savol × 0–5 ball). assessmentScore — jami 0–100
+    assessment: { type: mongoose.Schema.Types.Mixed, default: null },
+    assessmentScore: { type: Number, default: null },
     note: { type: String, default: "" },
     agreedSalary: { type: String, default: "" },
     interviewAt: { type: String, default: "" },
@@ -83,6 +86,8 @@ const applicationSchema = new mongoose.Schema(
     callerId: { type: String, default: "" },
     callerName: { type: String, default: "" },
     favorite: { type: Boolean, default: false },
+    // Panelda birinchi marta ochilgan vaqt. Bo'sh bo'lsa ariza "Yangi" (ochilmagan) hisoblanadi
+    seenAt: { type: Date, default: null },
     hasPhoto: { type: Boolean, default: false },
     photo: {
       data: Buffer,
@@ -591,7 +596,8 @@ export async function updateApplicationReview(id, input, actor) {
   const prev = await Application.findOne({ _id: id, ownerToken: ownerToken() }).select(withoutFiles);
   if (!prev) return null;
 
-  const allowedStatus = new Set(["none", "expected", "arrived", "missed", "hired"]);
+  // "missed" (Kelmagan) eski yozuvlar uchun qoldirilgan — panelda endi tanlanmaydi
+  const allowedStatus = new Set(["none", "expected", "arrived", "missed", "hired", "started"]);
   let interviewStatus = allowedStatus.has(input.interviewStatus) ? input.interviewStatus : "none";
   if (input.interviewStatus === "called") interviewStatus = "expected";
   let score = null;
@@ -691,6 +697,68 @@ export async function updateApplicationReview(id, input, actor) {
   return item;
 }
 
+export const ASSESSMENT_COUNT = 20;
+const ASSESSMENT_MAX = 5;
+
+// Ballni serverning o'zi hisoblaydi — brauzerdan kelgan jami ballga ishonilmaydi
+export async function saveAssessment(id, input, actor) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  const rawAnswers = Array.isArray(input?.answers) ? input.answers : [];
+  const rawNotes = Array.isArray(input?.notes) ? input.notes : [];
+  const answers = Array.from({ length: ASSESSMENT_COUNT }, (_, index) => {
+    const value = rawAnswers[index];
+    if (value === null || value === undefined || value === "") return null;
+    const num = Math.round(Number(value));
+    if (!Number.isFinite(num) || num < 0 || num > ASSESSMENT_MAX) {
+      const error = new Error(`${index + 1}-savol bahosi 0 dan ${ASSESSMENT_MAX} gacha bo'lishi kerak`);
+      error.status = 400;
+      throw error;
+    }
+    return num;
+  });
+  const notes = Array.from({ length: ASSESSMENT_COUNT }, (_, index) =>
+    String(rawNotes[index] || "").trim().slice(0, 300),
+  );
+  const answered = answers.filter((value) => value !== null).length;
+  const total = answers.reduce((sum, value) => sum + (value || 0), 0);
+
+  const set = {
+    assessment: {
+      version: Number(input?.version) || 1,
+      answers,
+      notes,
+      answered,
+      total,
+      byId: String(actor?.id || ""),
+      byName: personMark(actor?.surname, actor?.name),
+      at: new Date(),
+    },
+    assessmentScore: answered ? total : null,
+  };
+  // Baholagan hodim suhbat o'tkazuvchi sifatida yoziladi
+  if (answered && actor) {
+    set.interviewerId = String(actor.id || "");
+    set.interviewerName = personMark(actor.surname, actor.name);
+  }
+  return Application.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken() },
+    { $set: set },
+    { new: true },
+  )
+    .select(withoutFiles)
+    .lean();
+}
+
+export async function markApplicationSeen(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  // seenAt: null maydon yo'q hujjatlarni ham ushlaydi; faqat birinchi ochilish vaqti yoziladi
+  await Application.updateOne(
+    { _id: id, ownerToken: ownerToken(), seenAt: null },
+    { $set: { seenAt: new Date() } },
+  );
+  return getApplicationById(id);
+}
+
 export async function setApplicationFavorite(id, favorite) {
   if (!mongoose.isValidObjectId(id)) return null;
   return Application.findOneAndUpdate(
@@ -750,13 +818,17 @@ const importStatuses = {
   chaqirilmagan: "none",
   chaqirildi: "expected",
   keldi: "arrived",
+  zaxirada: "arrived",
+  "ishni boshladi": "started",
   kelmagan: "missed",
   "ishga kirgan": "hired",
+  "boshqa joyga ishga kirgan": "hired",
   none: "none",
   expected: "expected",
   arrived: "arrived",
   missed: "missed",
   hired: "hired",
+  started: "started",
 };
 
 export async function importApplications(rows) {
