@@ -2634,6 +2634,116 @@ label.logo-btn.upload { background: linear-gradient(135deg, #ec4899, #db2777); c
   .logo-box { grid-template-columns: 1fr; justify-items: start; }
 }
 
+/* ============ Qidiruv natijalari (qidiruv ostida) ============ */
+.search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  font-weight: 400;
+}
+.sr-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sr-head b { color: var(--ink); }
+.sr-head small { color: var(--faint); font-weight: 500; }
+.sr-empty { padding: 18px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+.sr-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 400;
+}
+.sr-item:hover,
+.sr-item.active { background: var(--accent-soft); }
+.sr-item.active { box-shadow: inset 3px 0 0 var(--accent); }
+.sr-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: cover;
+  object-position: center top;
+  background: var(--surface-2);
+}
+.sr-photo-empty {
+  display: grid;
+  place-items: center;
+  background: var(--c-soft);
+  color: var(--c);
+  font-size: 14px;
+  font-weight: 800;
+}
+.sr-main { display: grid; gap: 3px; min-width: 0; }
+.sr-name {
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sr-new {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+.sr-sub { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
+.sr-role {
+  --h: 245;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: hsl(var(--h) 85% 95%);
+  color: hsl(var(--h) 60% 36%);
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+:root[data-theme="dark"] .sr-role { background: hsl(var(--h) 55% 50% / 0.16); color: hsl(var(--h) 85% 76%); }
+.sr-phone { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sr-item .status-pill { font-size: 11px; padding: 3px 8px; }
+.search-results mark {
+  background: color-mix(in srgb, #facc15 45%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+@media (max-width: 640px) {
+  .sr-item { grid-template-columns: auto 1fr; }
+  .sr-item .status-pill { display: none; }
+}
+
 /* ============ Responsive ============ */
 @media (max-width: 1200px) {
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -2662,7 +2772,8 @@ label.logo-btn.upload { background: linear-gradient(135deg, #ec4899, #db2777); c
   .whoami { padding-right: 6px; }
   .brand small { display: none; }
   .brand strong { white-space: nowrap; }
-  .archive-btn { padding: 0 12px; }
+  .archive-btn { padding: 0 11px; font-size: 0; gap: 0; }
+  .archive-btn svg { width: 18px; height: 18px; }
   .top-actions { gap: 6px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .stat { padding: 12px; }

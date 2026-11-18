@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=17" />
+    <link rel="stylesheet" href="/styles.css?v=18" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -67,7 +67,8 @@
           </div>
           <label class="search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-            <input id="search" type="search" placeholder="Ism, telefon yoki username bo‘yicha qidirish" />
+            <input id="search" type="search" placeholder="Ism, telefon yoki username bo‘yicha qidirish" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="search-results" />
+            <div id="search-results" class="search-results hidden" role="listbox"></div>
           </label>
           <div class="top-actions">
             <button id="open-archive" type="button" class="ghost archive-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/></svg>Arxiv</button>
@@ -350,6 +351,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js?v=17"></script>
+    <script type="module" src="/app.js?v=18"></script>
   </body>
 </html>

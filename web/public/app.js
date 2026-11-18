@@ -422,13 +422,20 @@ function byDate(direction) {
   };
 }
 
+// Qidiruv: ism, username, yo'nalish bo'yicha; telefon raqam bo'shliq va chiziqchasiz ham topiladi
+function matchesQuery(item, query) {
+  const text = query.toLowerCase();
+  if ([item.fullName, item.username, item.position, item.phone, item.parentPhone]
+    .some((value) => String(value || "").toLowerCase().includes(text))) return true;
+  const digits = query.replace(/\D/g, "");
+  if (digits.length < 3) return false;
+  return [item.phone, item.parentPhone].some((value) => String(value || "").replace(/\D/g, "").includes(digits));
+}
+
 function searchedItems() {
-  const query = searchEl.value.trim().toLowerCase();
+  const query = searchEl.value.trim();
   if (!query) return allItems;
-  return allItems.filter((item) =>
-    [item.fullName, item.phone, item.parentPhone, item.username, item.position]
-      .some((value) => String(value || "").toLowerCase().includes(query)),
-  );
+  return allItems.filter((item) => matchesQuery(item, query));
 }
 
 function interviewKey(status) {
@@ -2012,6 +2019,119 @@ let timer;
 searchEl.addEventListener("input", () => {
   clearTimeout(timer);
   timer = setTimeout(render, 200);
+  renderSearchResults();
+});
+
+// ===== Qidiruv ostidagi natijalar ro'yxati =====
+const searchResults = document.querySelector("#search-results");
+let searchPicks = [];
+let searchActive = -1;
+
+function highlight(text, query) {
+  const value = String(text || "");
+  const q = query.trim();
+  if (!q) return esc(value);
+  const at = value.toLowerCase().indexOf(q.toLowerCase());
+  if (at < 0) return esc(value);
+  return `${esc(value.slice(0, at))}<mark>${esc(value.slice(at, at + q.length))}</mark>${esc(value.slice(at + q.length))}`;
+}
+
+function closeSearchResults() {
+  searchResults.classList.add("hidden");
+  searchEl.setAttribute("aria-expanded", "false");
+  searchActive = -1;
+}
+
+function renderSearchResults() {
+  const query = searchEl.value.trim();
+  const byNewest = (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  const found = query ? allItems.filter((item) => matchesQuery(item, query)) : [...allItems];
+  searchPicks = found.sort(byNewest).slice(0, 8);
+  searchActive = searchPicks.length ? 0 : -1;
+  const title = query
+    ? `<div class="sr-head"><span>Topildi: <b>${found.length}</b></span>${found.length > searchPicks.length ? `<small>eng yangi ${searchPicks.length} tasi</small>` : ""}</div>`
+    : `<div class="sr-head"><span>So‘nggi arizalar</span><small>yozing — qidiradi</small></div>`;
+  if (!searchPicks.length) {
+    searchResults.innerHTML = `${title}<div class="sr-empty">«${esc(query)}» bo‘yicha ariza topilmadi</div>`;
+  } else {
+    searchResults.innerHTML = title + searchPicks
+      .map((item, index) => {
+        const tone = interviewKey(item.interviewStatus);
+        const person = splitName(item.fullName);
+        const initials = [person.surname, person.name].filter((p) => p && p !== "—").map((p) => p.charAt(0).toUpperCase()).join("");
+        const photo = item.hasPhoto
+          ? `<img class="sr-photo" src="/api/applications/${esc(item._id)}/photo" alt="" loading="lazy" />`
+          : `<span class="sr-photo sr-photo-empty tone-${tone}">${esc(initials || "?")}</span>`;
+        const phone = formatPhone(item.phone) || formatPhone(item.parentPhone) || "—";
+        return `
+          <button type="button" class="sr-item${index === searchActive ? " active" : ""}" role="option" data-pick="${esc(item._id)}" data-index="${index}">
+            ${photo}
+            <span class="sr-main">
+              <span class="sr-name">${highlight(item.fullName || "Ariza", query)}${isFresh(item) ? ` <i class="sr-new">Yangi</i>` : ""}</span>
+              <span class="sr-sub">
+                <span class="sr-role" style="--h:${positionHue(item.position)}">${highlight(item.position || "Yo‘nalishsiz", query)}</span>
+                <span class="sr-phone">${highlight(phone, query)}</span>
+              </span>
+            </span>
+            <span class="status-pill tone-${tone}"><i></i>${esc(interviewLabels[tone])}</span>
+          </button>`;
+      })
+      .join("");
+  }
+  searchResults.classList.remove("hidden");
+  searchEl.setAttribute("aria-expanded", "true");
+}
+
+function paintSearchActive() {
+  searchResults.querySelectorAll(".sr-item").forEach((el) => {
+    const on = Number(el.dataset.index) === searchActive;
+    el.classList.toggle("active", on);
+    if (on) el.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function pickSearchResult(id) {
+  closeSearchResults();
+  searchEl.blur();
+  openDetail(id);
+}
+
+searchEl.addEventListener("focus", renderSearchResults);
+searchEl.addEventListener("click", renderSearchResults);
+searchEl.addEventListener("keydown", (event) => {
+  if (searchResults.classList.contains("hidden")) {
+    if (event.key === "ArrowDown") renderSearchResults();
+    return;
+  }
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    if (!searchPicks.length) return;
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    searchActive = (searchActive + step + searchPicks.length) % searchPicks.length;
+    paintSearchActive();
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    const pick = searchPicks[searchActive];
+    if (pick) pickSearchResult(pick._id);
+  } else if (event.key === "Escape") {
+    closeSearchResults();
+  }
+});
+// sichqoncha bilan bosilganda input fokusni yo'qotmasidan oldin ushlaymiz
+searchResults.addEventListener("mousedown", (event) => event.preventDefault());
+searchResults.addEventListener("click", (event) => {
+  event.preventDefault();
+  const item = event.target.closest("[data-pick]");
+  if (item) pickSearchResult(item.dataset.pick);
+});
+searchResults.addEventListener("mousemove", (event) => {
+  const item = event.target.closest("[data-index]");
+  if (!item || Number(item.dataset.index) === searchActive) return;
+  searchActive = Number(item.dataset.index);
+  paintSearchActive();
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".search")) closeSearchResults();
 });
 sortEl.addEventListener("change", () => {
   activeSort = sortEl.value;
