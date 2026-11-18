@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=15" />
+    <link rel="stylesheet" href="/styles.css?v=16" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -69,7 +69,7 @@
             <input id="search" type="search" placeholder="Ism, telefon yoki username bo‘yicha qidirish" />
           </label>
           <div class="top-actions">
-            <button id="open-archive" type="button" class="ghost archive-btn" aria-pressed="false">Arxiv</button>
+            <button id="open-archive" type="button" class="ghost archive-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/></svg>Arxiv</button>
             <button type="button" class="more-btn theme-toggle" aria-label="Tungi / kunduzgi rejim" title="Tungi / kunduzgi rejim">
               <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
               <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -243,6 +243,33 @@
       <div id="history-list" class="history-list"></div>
     </dialog>
 
+    <dialog id="archive-dialog">
+      <div class="arc-top">
+        <button id="close-archive" type="button" class="arc-back">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
+          Arizalarga qaytish
+        </button>
+      </div>
+      <div class="arc-wrap">
+        <header class="arc-head">
+          <span class="dialog-ico arc-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/></svg></span>
+          <div class="arc-title">
+            <h2>Arxiv <span class="badge" id="arc-count">0 ta</span></h2>
+            <p class="muted">O‘chirilgan arizalar shu yerda saqlanadi</p>
+          </div>
+          <label class="search arc-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input id="arc-search" type="search" placeholder="Arxivdan qidirish: ism, telefon, yo‘nalish" />
+          </label>
+        </header>
+        <div class="arc-note">
+          <span class="arc-note-item ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v5h16v-5M12 16V4M8 8l4-4 4 4"/></svg><b>Qaytarish</b> — ariza yana asosiy ro‘yxatga qaytadi</span>
+          <span class="arc-note-item bad"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg><b>Butunlay o‘chirish</b> — qaytarib bo‘lmaydi</span>
+        </div>
+        <section id="arc-list" class="arc-list"></section>
+      </div>
+    </dialog>
+
     <dialog id="detail">
       <div class="detail-head">
         <button id="back-detail" type="button" class="icon-btn" aria-label="Orqaga">
@@ -262,6 +289,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js?v=15"></script>
+    <script type="module" src="/app.js?v=16"></script>
   </body>
 </html>

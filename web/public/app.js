@@ -1687,14 +1687,7 @@ async function openDetail(id, silent = false) {
     restoreButton.className = "ghost";
     restoreButton.textContent = "Qaytarish";
     document.querySelector("#close-detail").before(restoreButton);
-    restoreButton.addEventListener("click", async () => {
-      if (!confirm("Bu ariza arxivdan qaytarilsinmi?")) return;
-      const res = await fetch(`/api/applications/${id}/restore`, { method: "POST" });
-      if (!res.ok) return;
-      allItems = allItems.filter((entry) => entry._id !== id);
-      detail.close();
-      render();
-    });
+    restoreButton.addEventListener("click", () => takeFromArchive(id));
   }
   if (!canRemove()) return;
   const deleteButton = document.createElement("button");
@@ -1710,14 +1703,100 @@ async function openDetail(id, silent = false) {
   });
 }
 
-document.querySelector("#open-archive").addEventListener("click", async () => {
-  archiveMode = !archiveMode;
-  document.querySelector("#page-title").textContent = archiveMode ? "Arxiv" : "Qabul paneli";
-  document.querySelector("#open-archive").classList.toggle("on", archiveMode);
-  document.querySelector("#open-archive").setAttribute("aria-pressed", archiveMode ? "true" : "false");
-  if (detail.open) detail.close();
-  await loadApplications();
+// ===== Arxiv: alohida, to'liq ekranli sahifa =====
+const archiveDialog = document.querySelector("#archive-dialog");
+const archiveList = document.querySelector("#arc-list");
+const archiveSearch = document.querySelector("#arc-search");
+let archiveItems = [];
+
+async function loadArchive() {
+  archiveList.innerHTML = `<p class="muted arc-loading">Yuklanmoqda...</p>`;
+  const res = await fetch("/api/applications?archived=1");
+  if (res.status === 401) return showLogin();
+  const data = await res.json().catch(() => ({}));
+  archiveItems = (data.items || []).sort((a, b) =>
+    new Date(b.archivedAt || b.createdAt || 0) - new Date(a.archivedAt || a.createdAt || 0));
+  renderArchive();
+}
+
+function renderArchive() {
+  document.querySelector("#arc-count").textContent = `${archiveItems.length} ta`;
+  const query = archiveSearch.value.trim().toLowerCase();
+  const items = query
+    ? archiveItems.filter((item) =>
+        [item.fullName, item.phone, item.parentPhone, item.position, item.username]
+          .some((value) => String(value || "").toLowerCase().includes(query)))
+    : archiveItems;
+  if (!items.length) {
+    archiveList.innerHTML = `
+      <div class="empty arc-empty">
+        <span class="arc-empty-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/></svg></span>
+        <strong>${query ? "Hech narsa topilmadi" : "Arxiv bo‘sh"}</strong>
+        <p>${query ? "Boshqa so‘z bilan qidirib ko‘ring." : "Arizani o‘chirsangiz, u shu yerga tushadi va keyin qaytarish mumkin bo‘ladi."}</p>
+      </div>`;
+    return;
+  }
+  const admin = currentUser?.role === "admin";
+  let lastDay = "";
+  archiveList.innerHTML = items
+    .map((item) => {
+      const day = historyDay(item.archivedAt || item.createdAt);
+      const head = day !== lastDay ? `<h3 class="history-day arc-day">${esc(day)}</h3>` : "";
+      lastDay = day;
+      const person = splitName(item.fullName);
+      const tone = interviewKey(item.interviewStatus);
+      const initials = [person.surname, person.name].filter((p) => p && p !== "—").map((p) => p.charAt(0).toUpperCase()).join("");
+      const photo = item.hasPhoto
+        ? `<img class="arc-photo" src="/api/applications/${esc(item._id)}/photo" alt="" loading="lazy" />`
+        : `<span class="arc-photo arc-photo-empty">${esc(initials || "?")}</span>`;
+      const archivedAt = item.archivedAt ? formatDate(item.archivedAt) : "—";
+      return `${head}
+        <article class="arc-card tone-${tone}" data-arc-open="${esc(item._id)}" tabindex="0">
+          ${photo}
+          <div class="arc-main">
+            <div class="arc-name-row">
+              <h3>${esc(item.fullName || "Ariza")}</h3>
+              <span class="status-pill tone-${tone}"><i></i>${esc(interviewLabels[tone])}</span>
+            </div>
+            <span class="ac-role" style="--h:${positionHue(item.position)}">${esc(item.position || "Yo‘nalishsiz")}</span>
+            <div class="arc-meta">
+              <span><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.phone}</svg>${esc(formatPhone(item.phone) || "—")}</span>
+              <span><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.interview}</svg>Kelgan: ${esc(formatDate(item.createdAt) || "—")}</span>
+              <span class="arc-when"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3z"/></svg>Arxivga: ${esc(archivedAt)}</span>
+            </div>
+          </div>
+          <div class="arc-actions">
+            ${admin ? `<button type="button" class="arc-btn restore" data-arc-restore="${esc(item._id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v5h16v-5M12 16V4M8 8l4-4 4 4"/></svg>Qaytarish</button>` : ""}
+            ${canRemove() ? `<button type="button" class="arc-btn purge" data-arc-purge="${esc(item._id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>Butunlay o‘chirish</button>` : ""}
+          </div>
+        </article>`;
+    })
+    .join("");
+}
+
+archiveSearch.addEventListener("input", renderArchive);
+
+archiveList.addEventListener("click", (event) => {
+  const restore = event.target.closest("[data-arc-restore]");
+  if (restore) return takeFromArchive(restore.dataset.arcRestore);
+  const purge = event.target.closest("[data-arc-purge]");
+  if (purge) return purgeFromArchive(purge.dataset.arcPurge);
+  const card = event.target.closest("[data-arc-open]");
+  if (card) openDetail(card.dataset.arcOpen);
 });
+archiveList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const card = event.target.closest("[data-arc-open]");
+  if (card) openDetail(card.dataset.arcOpen);
+});
+
+document.querySelector("#open-archive").addEventListener("click", async () => {
+  if (detail.open) detail.close();
+  archiveSearch.value = "";
+  archiveDialog.showModal();
+  await loadArchive();
+});
+document.querySelector("#close-archive").addEventListener("click", () => archiveDialog.close());
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -2033,11 +2112,15 @@ async function removeRequest(id, url, method) {
   allItems = allItems.filter((entry) => entry._id !== id);
   closeDetailIf(id);
   render();
+  if (archiveDialog.open) {
+    archiveItems = archiveItems.filter((entry) => entry._id !== id);
+    renderArchive();
+  }
   return true;
 }
 
 async function moveToArchive(id) {
-  if (!confirm("Bu ariza arxivga o‘tkazilsinmi?")) return;
+  if (!confirm("Bu ariza arxivga o‘tkazilsinmi? Keyin «Arxiv» bo‘limidan qaytarish mumkin.")) return;
   await removeRequest(id, `/api/applications/${id}`, "DELETE");
 }
 
@@ -2047,8 +2130,9 @@ async function purgeFromArchive(id) {
 }
 
 async function takeFromArchive(id) {
-  if (!confirm("Bu ariza arxivdan qaytarilsinmi?")) return;
-  await removeRequest(id, `/api/applications/${id}/restore`, "POST");
+  if (!confirm("Bu ariza arxivdan qaytarilsinmi? U yana asosiy ro‘yxatda ko‘rinadi.")) return;
+  // qaytarilgan ariza asosiy ro'yxatda paydo bo'lishi uchun ro'yxat qayta yuklanadi
+  if (await removeRequest(id, `/api/applications/${id}/restore`, "POST")) await loadApplications();
 }
 
 async function toggleFavorite(id) {
