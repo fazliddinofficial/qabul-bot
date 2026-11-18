@@ -407,6 +407,7 @@ function showApp() {
     .join("");
   document.querySelector("#whoami-initials").textContent = initials || "?";
   document.querySelector("#open-staff").classList.toggle("hidden", currentUser?.role !== "admin");
+  document.querySelector("#open-branding").classList.toggle("hidden", currentUser?.role !== "admin");
 }
 
 function byName(a, b) {
@@ -2405,6 +2406,133 @@ document.querySelectorAll(".theme-toggle").forEach((button) => {
     try { localStorage.setItem("qabul-theme", next); } catch { /* xotira yopiq bo'lsa ham ishlayveradi */ }
   });
 });
+
+// ===== Brend: logo va nom (hamma joyda bir xil, admin o'zgartiradi) =====
+let branding = { name: "Qabul paneli", hasLogo: false, updatedAt: null };
+
+function brandLogoUrl() {
+  return `/api/branding/logo?v=${encodeURIComponent(branding.updatedAt || "1")}`;
+}
+
+function paintBrandMarks(root = document) {
+  root.querySelectorAll("[data-brand-mark]").forEach((mark) => {
+    const img = mark.querySelector(".brand-logo");
+    const letter = mark.querySelector(".brand-letter");
+    letter.textContent = (branding.name || "Q").trim().charAt(0).toUpperCase() || "Q";
+    mark.classList.toggle("has-logo", branding.hasLogo);
+    img.classList.toggle("hidden", !branding.hasLogo);
+    if (branding.hasLogo) img.src = brandLogoUrl();
+    else img.removeAttribute("src");
+  });
+}
+
+function applyBranding() {
+  document.querySelectorAll("[data-brand-name]").forEach((el) => { el.textContent = branding.name; });
+  document.querySelectorAll("[data-brand-preview-name]").forEach((el) => { el.textContent = branding.name; });
+  paintBrandMarks();
+  document.title = branding.name;
+  document.querySelector("#favicon")?.setAttribute("href", branding.hasLogo ? brandLogoUrl() : "data:,");
+}
+
+async function loadBranding() {
+  try {
+    const res = await fetch("/api/branding");
+    if (res.ok) branding = await res.json();
+  } catch { /* brend yuklanmasa standart nom qoladi */ }
+  applyBranding();
+}
+
+const brandingDialog = document.querySelector("#branding-dialog");
+const brandForm = document.querySelector("#brand-form");
+const brandNameInput = brandForm.elements.name;
+const logoStatus = document.querySelector("#logo-status");
+
+function paintBrandingDialog() {
+  const current = document.querySelector("#logo-current");
+  current.classList.toggle("hidden", !branding.hasLogo);
+  document.querySelector("#logo-empty").classList.toggle("hidden", branding.hasLogo);
+  document.querySelector("#logo-remove").classList.toggle("hidden", !branding.hasLogo);
+  if (branding.hasLogo) current.src = brandLogoUrl();
+  document.querySelector("#brand-count").textContent = `${brandNameInput.value.length}/40`;
+}
+
+document.querySelector("#open-branding").addEventListener("click", () => {
+  document.querySelector(".account").classList.remove("open");
+  brandNameInput.value = branding.name;
+  document.querySelector("#brand-error").textContent = "";
+  logoStatus.textContent = "";
+  paintBrandingDialog();
+  brandingDialog.showModal();
+});
+document.querySelector("#close-branding").addEventListener("click", () => brandingDialog.close());
+
+// nom yozilayotganda ko'rinish darhol yangilanadi
+brandNameInput.addEventListener("input", () => {
+  const preview = brandNameInput.value.trim() || "Qabul paneli";
+  document.querySelectorAll("[data-brand-preview-name]").forEach((el) => { el.textContent = preview; });
+  const letter = brandingDialog.querySelector(".brand-preview .brand-letter");
+  if (letter) letter.textContent = preview.charAt(0).toUpperCase();
+  document.querySelector("#brand-count").textContent = `${brandNameInput.value.length}/40`;
+});
+
+brandForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = document.querySelector("#brand-save");
+  button.disabled = true;
+  const res = await fetch("/api/branding", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: brandNameInput.value }),
+  });
+  button.disabled = false;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    document.querySelector("#brand-error").textContent = data.error || "Saqlanmadi";
+    return;
+  }
+  branding = data;
+  brandNameInput.value = branding.name;
+  applyBranding();
+  button.textContent = "Saqlandi ✓";
+  setTimeout(() => { button.textContent = "Nomni saqlash"; }, 1500);
+});
+
+document.querySelector("#logo-file").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    logoStatus.textContent = "Faqat PNG, JPG yoki WEBP rasm.";
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    logoStatus.textContent = "Rasm 2 MB dan katta bo‘lmasin.";
+    return;
+  }
+  logoStatus.textContent = "Yuklanmoqda...";
+  const res = await fetch("/api/branding/logo", { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    logoStatus.textContent = data.error || "Logo saqlanmadi";
+    return;
+  }
+  branding = data;
+  applyBranding();
+  paintBrandingDialog();
+  logoStatus.textContent = "Logo saqlandi ✓";
+});
+
+document.querySelector("#logo-remove").addEventListener("click", async () => {
+  if (!confirm("Logo olib tashlansinmi? O‘rniga nomning birinchi harfi chiqadi.")) return;
+  const res = await fetch("/api/branding/logo", { method: "DELETE" });
+  if (!res.ok) return;
+  branding = await res.json();
+  applyBranding();
+  paintBrandingDialog();
+  logoStatus.textContent = "Logo olib tashlandi";
+});
+
+await loadBranding();
 
 const me = await fetch("/api/me");
 const session = await me.json();

@@ -374,6 +374,80 @@ export async function deleteStaff(id) {
   return publicStaff(doc);
 }
 
+// ---------------------------------------------------------------------------
+// Brend: panel tepasidagi nom va logo (admin o'zgartiradi). app_meta kolleksiyasida saqlanadi.
+// ---------------------------------------------------------------------------
+export const DEFAULT_BRAND_NAME = "Qabul paneli";
+const BRAND_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function brandingId() {
+  return `branding:${ownerToken()}`;
+}
+
+function brandingCollection() {
+  return mongoose.connection.collection("app_meta");
+}
+
+export async function getBranding() {
+  const doc = await brandingCollection().findOne({ _id: brandingId() }, { projection: { "logo.data": 0 } });
+  return {
+    name: String(doc?.name || "").trim() || DEFAULT_BRAND_NAME,
+    hasLogo: Boolean(doc?.logo?.contentType),
+    updatedAt: doc?.updatedAt || null,
+  };
+}
+
+export async function setBrandName(name) {
+  const clean = String(name || "").replace(/\s+/g, " ").trim().slice(0, 40);
+  await brandingCollection().updateOne(
+    { _id: brandingId() },
+    { $set: { name: clean, updatedAt: new Date() } },
+    { upsert: true },
+  );
+  return getBranding();
+}
+
+export async function setBrandLogo({ data, contentType }) {
+  if (!BRAND_LOGO_TYPES.has(contentType)) {
+    const error = new Error("Logo faqat PNG, JPG yoki WEBP bo‘lishi kerak");
+    error.status = 400;
+    throw error;
+  }
+  if (!data?.length) {
+    const error = new Error("Logo fayli bo‘sh");
+    error.status = 400;
+    throw error;
+  }
+  if (data.length > 2 * 1024 * 1024) {
+    const error = new Error("Logo 2 MB dan katta bo‘lmasin");
+    error.status = 400;
+    throw error;
+  }
+  await brandingCollection().updateOne(
+    { _id: brandingId() },
+    { $set: { logo: { data, contentType }, updatedAt: new Date() } },
+    { upsert: true },
+  );
+  return getBranding();
+}
+
+export async function clearBrandLogo() {
+  await brandingCollection().updateOne(
+    { _id: brandingId() },
+    { $unset: { logo: "" }, $set: { updatedAt: new Date() } },
+    { upsert: true },
+  );
+  return getBranding();
+}
+
+export async function getBrandLogo() {
+  const doc = await brandingCollection().findOne({ _id: brandingId() }, { projection: { logo: 1 } });
+  if (!doc?.logo?.data) return null;
+  const raw = doc.logo.data;
+  const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer || raw);
+  return { data, contentType: doc.logo.contentType };
+}
+
 export async function connectDb(uri) {
   mongoose.set("strictQuery", true);
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });

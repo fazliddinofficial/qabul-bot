@@ -2530,6 +2530,110 @@ dialog#archive-dialog {
   .arc-btn { flex: 1; }
 }
 
+/* ============ Brend: logo va nom ============ */
+.brand-mark { position: relative; overflow: hidden; flex: none; }
+.brand-mark .brand-logo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+.brand-mark.has-logo { background: #fff; box-shadow: 0 0 0 1px var(--line), 0 4px 12px rgba(17, 24, 39, 0.12); }
+.brand-mark.has-logo .brand-letter { visibility: hidden; }
+.login-art .brand-mark.has-logo { background: #fff; }
+
+/* tepadagi brend joyi kattaroq va aniqroq */
+.topbar .brand { gap: 12px; }
+.topbar .brand-mark { width: 42px; height: 42px; border-radius: 12px; font-size: 20px; }
+.topbar .brand strong {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-preview,
+.brand-section {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.brand-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--topbar-bg);
+}
+.brand-preview-bar .brand-mark { width: 42px; height: 42px; border-radius: 12px; font-size: 20px; }
+.brand-preview-bar strong { font-size: 16px; font-weight: 800; }
+.brand-preview-bar small { color: var(--muted); font-size: 12px; }
+.brand-preview-fake {
+  width: 38%;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.logo-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.logo-drop {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  border: 2px dashed color-mix(in srgb, #ec4899 40%, var(--line));
+  background: var(--surface);
+  overflow: hidden;
+}
+.logo-drop img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.logo-empty { display: grid; justify-items: center; gap: 4px; color: var(--faint); font-size: 11px; font-weight: 600; }
+.logo-empty svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.logo-info p { margin: 0; color: var(--muted); font-size: 13px; }
+.logo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.logo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.logo-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+label.logo-btn.upload { background: linear-gradient(135deg, #ec4899, #db2777); color: #fff; box-shadow: 0 6px 14px rgba(236, 72, 153, 0.3); }
+.logo-btn.remove { background: var(--surface); color: var(--danger); border: 1px solid var(--danger-line); }
+.logo-btn.remove:hover { background: var(--danger-soft); }
+.logo-status { margin-top: 8px !important; font-weight: 600; color: var(--ink-2) !important; }
+.logo-status:empty { display: none; }
+.brand-count { float: right; font-style: normal; font-weight: 500; color: var(--faint); }
+#brand-form .field > span { display: block; }
+#brand-form .error:empty { display: none; }
+#brand-save { padding: 11px; }
+
+@media (max-width: 640px) {
+  .topbar .brand strong { max-width: 130px; font-size: 14px; }
+  .topbar .brand-mark { width: 36px; height: 36px; }
+  .logo-box { grid-template-columns: 1fr; justify-items: start; }
+}
+
 /* ============ Responsive ============ */
 @media (max-width: 1200px) {
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }

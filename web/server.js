@@ -28,6 +28,11 @@ import {
   ASSESSMENT_COUNT,
   setApplicationFavorite,
   updateStaff,
+  getBranding,
+  setBrandName,
+  setBrandLogo,
+  clearBrandLogo,
+  getBrandLogo,
 } from "../db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -200,6 +205,54 @@ export async function startWeb() {
       res.clearCookie("qabul.sid");
       res.json({ ok: true });
     });
+  });
+
+  // Brend (nom va logo) — kirish sahifasida ham ko'rinishi uchun o'qish ochiq
+  app.get("/api/branding", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await getBranding());
+  });
+
+  app.get("/api/branding/logo", async (req, res) => {
+    const logo = await getBrandLogo();
+    if (!logo) return res.status(404).end();
+    res.setHeader("Content-Type", logo.contentType);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(logo.data);
+  });
+
+  app.put("/api/branding", requireAuth, requireAdmin, async (req, res) => {
+    const before = await getBranding();
+    const branding = await setBrandName(req.body?.name);
+    if (before.name !== branding.name) {
+      await recordActivity({ actor: actorOf(req), action: "Brend nomini o‘zgartirdi", detail: `${before.name} → ${branding.name}` });
+    }
+    res.json(branding);
+  });
+
+  app.put(
+    "/api/branding/logo",
+    requireAuth,
+    requireAdmin,
+    express.raw({ type: () => true, limit: "3mb" }),
+    async (req, res) => {
+      try {
+        const contentType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+        const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+        const branding = await setBrandLogo({ data, contentType });
+        await recordActivity({ actor: actorOf(req), action: "Brend logosini yangiladi", detail: branding.name });
+        res.json(branding);
+      } catch (error) {
+        res.status(error.status || 500).json({ error: error.message || "Logo saqlanmadi" });
+      }
+    },
+  );
+
+  app.delete("/api/branding/logo", requireAuth, requireAdmin, async (req, res) => {
+    const branding = await clearBrandLogo();
+    await recordActivity({ actor: actorOf(req), action: "Brend logosini olib tashladi", detail: branding.name });
+    res.json(branding);
   });
 
   app.get("/api/me", (req, res) => {
