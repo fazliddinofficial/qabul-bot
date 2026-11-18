@@ -8,7 +8,8 @@ function salaryAmount(text) {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
-const WORK_SHIFTS = ["1-smena", "2-smena", "to'liq smena"];
+// Ish vaqti tugmalari. Bot tugmalari va javob tekshiruvi shu ro'yxatdan olinadi.
+export const WORK_SHIFTS = ["1-Smena 8:00-13:00+", "2-Smena 13:30-20:00+", "To'liq smena 8:00-20:00+"];
 
 function isImageDocument(document) {
   if (!document) return false;

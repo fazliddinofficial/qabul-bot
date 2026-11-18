@@ -6,6 +6,7 @@ import {
   completedEducationQuestions,
   incompleteEducationQuestions,
   questions,
+  WORK_SHIFTS,
 } from "./questions.js";
 import { addJobToUser, connectDb, createUser, getUserById, saveApplication } from "./db.js";
 import { startWeb } from "./web/server.js";
@@ -406,11 +407,7 @@ bot.on("message", async (ctx) => {
     if (nextQuestion.id === "workHours") {
       return ctx.reply(nextQuestion.text, {
         reply_markup: {
-          keyboard: [
-            [{ text: "1-smena" }],
-            [{ text: "2-smena" }],
-            [{ text: "to'liq smena" }],
-          ],
+          keyboard: WORK_SHIFTS.map((shift) => [{ text: shift }]),
           resize_keyboard: true,
           one_time_keyboard: true,
         },
