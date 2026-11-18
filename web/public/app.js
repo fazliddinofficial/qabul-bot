@@ -1,11 +1,12 @@
 import {
   ASSESSMENT_QUESTIONS,
-  ASSESSMENT_SECTIONS,
+  ASSESSMENT_SETS,
+  assessmentKindFor,
   ASSESSMENT_VERSION,
   MAX_SCORE,
   RATING_SCALE,
   assessmentGrade,
-} from "./assessment.js?v=9";
+} from "./assessment.js?v=14";
 
 const loginView = document.querySelector("#login-view");
 const appView = document.querySelector("#app-view");
@@ -575,7 +576,8 @@ function scoreCardHtml(item) {
 function scoreDetailHtml(item) {
   if (item.assessmentScore != null) {
     const grade = assessmentGrade(item.assessmentScore);
-    return `${item.assessmentScore} / 100 <em class="grade-pill g-${grade.key}">${grade.label}</em>`;
+    const manualMark = item.assessment?.manualScore != null ? ` <em class="grade-pill">qo‘lda</em>` : "";
+    return `${item.assessmentScore} / 100 <em class="grade-pill g-${grade.key}">${grade.label}</em>${manualMark}`;
   }
   if (item.score != null && item.score !== "") return `${Math.round(Number(item.score))} / 10 <em class="grade-pill">eski baho</em>`;
   return `<em class="score-cta">Baholashni boshlash →</em>`;
@@ -916,12 +918,23 @@ function fieldStyle(name) {
   return look ? ` style="--fc:${look[1]}"` : "";
 }
 
+// Qaysi savollar to'plami: saqlangan baho o'z to'plamida qoladi
+// (eski baholarda "kind" yo'q — ular pedagogik savollar bilan qo'yilgan).
+function assessmentKindOf(item) {
+  const saved = item.assessment;
+  if (saved && (saved.answered || saved.manualScore != null)) return saved.kind || "teacher";
+  return assessmentKindFor(item.position);
+}
+
 function assessmentPageHtml(item) {
   const saved = item.assessment || {};
+  const kind = assessmentKindOf(item);
+  const set = ASSESSMENT_SETS[kind] || ASSESSMENT_SETS.teacher;
   const answers = Array.isArray(saved.answers) ? saved.answers : [];
   const notes = Array.isArray(saved.notes) ? saved.notes : [];
+  const manual = saved.manualScore ?? "";
   let index = 0;
-  const sections = ASSESSMENT_SECTIONS.map((section, sectionIndex) => {
+  const sections = set.sections.map((section, sectionIndex) => {
     const questions = section.questions.map((question) => {
       const i = index++;
       const value = answers[i] ?? null;
@@ -948,13 +961,13 @@ function assessmentPageHtml(item) {
   }).join("");
   const by = saved.byName ? `Oxirgi baholagan: ${esc(saved.byName)}, ${esc(formatDate(saved.at))}` : "Hali baholanmagan";
   return `
-    <article class="assess-page hidden" id="assess-page">
+    <article class="assess-page hidden" id="assess-page" data-kind="${kind}">
       <div class="assess-head">
         <button type="button" class="icon-btn" id="close-assess" aria-label="Orqaga">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
         </button>
         <div class="assess-title">
-          <p class="eyebrow">Pedagogik suhbat</p>
+          <p class="eyebrow">${esc(set.title)}</p>
           <h2>20 ta savol · ${MAX_SCORE} ballik baho</h2>
           <p class="assess-by" id="assess-by">${by}</p>
         </div>
@@ -966,8 +979,13 @@ function assessmentPageHtml(item) {
             <span id="assess-count" class="muted"></span>
           </div>
         </div>
+        <label class="manual-score" title="Savollarsiz, ballni o‘zingiz qo‘yishingiz mumkin">
+          <span>Qo‘lda ball</span>
+          <span class="manual-box"><input id="assess-manual" type="number" min="0" max="${MAX_SCORE}" step="1" inputmode="numeric" placeholder="—" value="${esc(manual)}" /><small>/ ${MAX_SCORE}</small></span>
+          <button type="button" id="assess-manual-clear" class="manual-clear" title="Qo‘lda ballni olib tashlash" aria-label="Qo‘lda ballni olib tashlash">×</button>
+        </label>
       </div>
-      <p class="assess-help">Savolni nomzodga bering, javobini tinglang va <b>0–5</b> ball qo‘ying. Har bir savol 5 ball, jami ${MAX_SCORE} ball — natija o‘zi hisoblanadi. Bahoni bekor qilish uchun tanlangan tugmani yana bosing.</p>
+      <p class="assess-help">Savolni nomzodga bering, javobini tinglang va <b>0–5</b> ball qo‘ying. Har bir savol 5 ball, jami ${MAX_SCORE} ball — natija o‘zi hisoblanadi. Bahoni bekor qilish uchun tanlangan tugmani yana bosing. Xohlasangiz, yuqoridagi <b>«Qo‘lda ball»</b> maydoniga 0–${MAX_SCORE} oralig‘ida ballni o‘zingiz yozishingiz mumkin — u savollar bahosi o‘rniga hisoblanadi.</p>
       ${sections}
       <div class="assess-foot">
         <span id="assess-state" class="assess-state">O‘zgarish yo‘q</span>
@@ -982,10 +1000,13 @@ function bindAssessment(item, id) {
   if (!page || !passCard) return;
   const count = ASSESSMENT_QUESTIONS.length;
   const saved = item.assessment || {};
+  const kind = page.dataset.kind || "teacher";
+  const manualInput = page.querySelector("#assess-manual");
   const state = {
     answers: Array.from({ length: count }, (_, i) =>
       Array.isArray(saved.answers) && saved.answers[i] != null ? Number(saved.answers[i]) : null),
     notes: Array.from({ length: count }, (_, i) => (Array.isArray(saved.notes) ? String(saved.notes[i] || "") : "")),
+    manual: saved.manualScore != null ? Number(saved.manualScore) : null,
   };
   let dirty = false;
   const stateEl = page.querySelector("#assess-state");
@@ -999,14 +1020,19 @@ function bindAssessment(item, id) {
   function paint() {
     const answered = state.answers.filter((value) => value !== null).length;
     const total = state.answers.reduce((sum, value) => sum + (value || 0), 0);
-    const grade = assessmentGrade(answered ? total : null);
-    page.querySelector("#assess-total").textContent = String(total);
+    const manual = state.manual;
+    const shown = manual ?? total;
+    const grade = assessmentGrade(manual ?? (answered ? total : null));
+    page.querySelector("#assess-total").textContent = String(shown);
     page.querySelector("#assess-grade").textContent = grade.label;
-    page.querySelector("#assess-advice").textContent = answered ? grade.advice : "";
-    page.querySelector("#assess-count").textContent = `${answered} / ${count} savol baholandi`;
+    page.querySelector("#assess-advice").textContent = manual !== null || answered ? grade.advice : "";
+    page.querySelector("#assess-count").textContent = manual !== null
+      ? `Qo‘lda kiritilgan · savollar bo‘yicha: ${total}`
+      : `${answered} / ${count} savol baholandi`;
+    page.classList.toggle("manual-on", manual !== null);
     const box = page.querySelector("#assess-score");
     box.dataset.grade = grade.key;
-    box.style.setProperty("--p", String((total / MAX_SCORE) * 100));
+    box.style.setProperty("--p", String((shown / MAX_SCORE) * 100));
     page.querySelectorAll(".assess-cat").forEach((cat) => {
       const indexes = [...cat.querySelectorAll(".q")].map((q) => Number(q.dataset.q));
       const sum = indexes.reduce((acc, i) => acc + (state.answers[i] || 0), 0);
@@ -1030,6 +1056,30 @@ function bindAssessment(item, id) {
     setDirty(true);
     paint();
   });
+  manualInput?.addEventListener("input", () => {
+    const raw = manualInput.value.trim();
+    if (!raw) state.manual = null;
+    else {
+      const num = Math.round(Number(raw));
+      if (!Number.isFinite(num) || num < 0 || num > MAX_SCORE) {
+        manualInput.classList.add("bad");
+        return;
+      }
+      state.manual = num;
+    }
+    manualInput.classList.remove("bad");
+    setDirty(true);
+    paint();
+  });
+  page.querySelector("#assess-manual-clear")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (!canChange() || state.manual === null) return;
+    manualInput.value = "";
+    manualInput.classList.remove("bad");
+    state.manual = null;
+    setDirty(true);
+    paint();
+  });
   page.addEventListener("input", (event) => {
     const note = event.target.closest(".q-note");
     if (!note) return;
@@ -1050,16 +1100,21 @@ function bindAssessment(item, id) {
   if (!canChange()) {
     page.classList.add("readonly");
     page.querySelector("#assess-save").disabled = true;
+    if (manualInput) manualInput.disabled = true;
     stateEl.textContent = "Faqat ko‘rish: baholashga ruxsat yo‘q";
   }
   page.querySelector("#assess-save").addEventListener("click", async () => {
     if (!canChange()) return;
+    if (manualInput?.classList.contains("bad")) {
+      alert(`Qo‘lda ball 0 dan ${MAX_SCORE} gacha bo‘lishi kerak`);
+      return;
+    }
     const saveButton = page.querySelector("#assess-save");
     saveButton.disabled = true;
     const res = await fetch(`/api/applications/${id}/assessment`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ version: ASSESSMENT_VERSION, answers: state.answers, notes: state.notes }),
+      body: JSON.stringify({ version: ASSESSMENT_VERSION, kind, answers: state.answers, notes: state.notes, manualScore: state.manual }),
     });
     saveButton.disabled = false;
     const data = await res.json().catch(() => ({}));

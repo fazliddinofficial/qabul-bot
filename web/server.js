@@ -307,10 +307,12 @@ export async function startWeb() {
       const item = await saveAssessment(req.params.id, req.body || {}, req.session.user);
       if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
       const answered = item.assessment?.answered || 0;
+      const manual = item.assessment?.manualScore != null;
+      const kindNames = { teacher: "Pedagogik", admin: "Administrator", manager: "Menejer" };
       await recordActivity({
         actor: actorOf(req),
-        action: "Pedagogik baholadi",
-        detail: `${item.fullName || "Ariza"}. ${item.assessmentScore ?? 0} / 100 (${answered}/${ASSESSMENT_COUNT} savol)`,
+        action: `${kindNames[item.assessment?.kind] || "Pedagogik"} suhbat bahosi`,
+        detail: `${item.fullName || "Ariza"}. ${item.assessmentScore ?? 0} / 100 (${manual ? "qo‘lda kiritilgan" : `${answered}/${ASSESSMENT_COUNT} savol`})`,
       });
       res.json({ item });
     } catch (error) {

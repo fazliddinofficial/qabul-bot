@@ -2077,6 +2077,56 @@ button.pass-field.score-launch strong { white-space: normal; }
 
 .assess-page.readonly .q-rate .r { cursor: not-allowed; opacity: 0.75; }
 
+/* Qo'lda ball: savollarsiz yakuniy ballni yozish */
+.manual-score {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 16px;
+  border: 1px dashed var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.manual-score > span:first-child { grid-column: 1 / -1; }
+.manual-box { display: inline-flex; align-items: baseline; gap: 4px; }
+.manual-box input {
+  width: 74px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0;
+}
+.manual-box input.bad { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.manual-box small { font-size: 12px; text-transform: none; letter-spacing: 0; }
+.manual-clear {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font-size: 16px;
+  line-height: 1;
+}
+.manual-clear:hover { color: var(--danger); background: var(--danger-soft); border-color: var(--danger-line); }
+.assess-page.manual-on .manual-score {
+  border-style: solid;
+  border-color: #f97316;
+  background: color-mix(in srgb, #f97316 10%, var(--surface));
+  color: #ea580c;
+}
+/* qo'lda ball kiritilganda savollar yordamchi bo'lib qoladi */
+.assess-page.manual-on .assess-cat { opacity: 0.7; }
+
 /* ============ Responsive ============ */
 @media (max-width: 1200px) {
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }

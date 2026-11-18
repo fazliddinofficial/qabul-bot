@@ -810,21 +810,38 @@ export async function saveAssessment(id, input, actor) {
   const answered = answers.filter((value) => value !== null).length;
   const total = answers.reduce((sum, value) => sum + (value || 0), 0);
 
+  // Qo'lda kiritilgan ball (0–100) bo'lsa, u savollar yig'indisidan ustun turadi
+  let manualScore = null;
+  const rawManual = input?.manualScore;
+  if (rawManual !== null && rawManual !== undefined && rawManual !== "") {
+    const num = Math.round(Number(rawManual));
+    if (!Number.isFinite(num) || num < 0 || num > ASSESSMENT_COUNT * ASSESSMENT_MAX) {
+      const error = new Error(`Qo'lda ball 0 dan ${ASSESSMENT_COUNT * ASSESSMENT_MAX} gacha bo'lishi kerak`);
+      error.status = 400;
+      throw error;
+    }
+    manualScore = num;
+  }
+  // Savollar to'plami: o'qituvchi, administrator yoki menejer
+  const kind = ["teacher", "admin", "manager"].includes(input?.kind) ? input.kind : "teacher";
+
   const set = {
     assessment: {
       version: Number(input?.version) || 1,
+      kind,
       answers,
       notes,
       answered,
       total,
+      manualScore,
       byId: String(actor?.id || ""),
       byName: personMark(actor?.surname, actor?.name),
       at: new Date(),
     },
-    assessmentScore: answered ? total : null,
+    assessmentScore: manualScore ?? (answered ? total : null),
   };
   // Baholagan hodim suhbat o'tkazuvchi sifatida yoziladi
-  if (answered && actor) {
+  if ((answered || manualScore !== null) && actor) {
     set.interviewerId = String(actor.id || "");
     set.interviewerName = personMark(actor.surname, actor.name);
   }
