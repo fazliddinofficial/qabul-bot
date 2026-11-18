@@ -685,7 +685,7 @@ export async function updateApplicationReview(id, input, actor) {
   if (!prev) return null;
 
   // "missed" (Kelmagan) eski yozuvlar uchun qoldirilgan — panelda endi tanlanmaydi
-  const allowedStatus = new Set(["none", "expected", "arrived", "missed", "hired", "started"]);
+  const allowedStatus = new Set(["none", "expected", "arrived", "missed", "hired", "started", "left"]);
   let interviewStatus = allowedStatus.has(input.interviewStatus) ? input.interviewStatus : "none";
   if (input.interviewStatus === "called") interviewStatus = "expected";
   let score = null;
@@ -925,6 +925,8 @@ const importStatuses = {
   keldi: "arrived",
   zaxirada: "arrived",
   "ishni boshladi": "started",
+  "ishdan bo‘shagan": "left",
+  "ishdan bo'shagan": "left",
   kelmagan: "missed",
   "ishga kirgan": "hired",
   "boshqa joyga ishga kirgan": "hired",
@@ -934,6 +936,7 @@ const importStatuses = {
   missed: "missed",
   hired: "hired",
   started: "started",
+  left: "left",
 };
 
 export async function importApplications(rows) {

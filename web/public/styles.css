@@ -24,10 +24,11 @@
   --t-expected: #2563eb;  --t-expected-soft: #eaf1ff;
   --t-arrived: #7c3aed;   --t-arrived-soft: #f3edff;
   /* Kelmagan (eski holat) — kulrang; Boshqa joyga ishga kirgan — qizil (yo‘qotilgan nomzod) */
-  --t-missed: #64748b;    --t-missed-soft: #eef2f6;
+  --t-missed: #78716c;    --t-missed-soft: #f2f0ee;
   --t-hired: #dc2626;     --t-hired-soft: #fdeeee;
   --t-today: #059669;     --t-today-soft: #e7f8f1;
   --t-started: #0891b2;   --t-started-soft: #e2f6fb;
+  --t-left: #475569;      --t-left-soft: #e9edf2;
 
   --accent-bg: #4f46e5;
   --pink-soft: #fdf2f8;
@@ -76,10 +77,11 @@
   --t-none: #fbbf24;      --t-none-soft: rgba(251, 191, 36, 0.13);
   --t-expected: #60a5fa;  --t-expected-soft: rgba(96, 165, 250, 0.14);
   --t-arrived: #a78bfa;   --t-arrived-soft: rgba(167, 139, 250, 0.15);
-  --t-missed: #94a3b8;    --t-missed-soft: rgba(148, 163, 184, 0.14);
+  --t-missed: #a8a29e;    --t-missed-soft: rgba(168, 162, 158, 0.14);
   --t-hired: #f87171;     --t-hired-soft: rgba(248, 113, 113, 0.13);
   --t-today: #34d399;     --t-today-soft: rgba(52, 211, 153, 0.13);
   --t-started: #22d3ee;   --t-started-soft: rgba(34, 211, 238, 0.13);
+  --t-left: #cbd5e1;      --t-left-soft: rgba(203, 213, 225, 0.13);
   --t-new: #f472b6;       --t-new-soft: rgba(244, 114, 182, 0.14);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -404,7 +406,7 @@ button.danger:hover { background: #b91c1c; }
 /* ============ Stats ============ */
 .stats {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 12px;
 }
 .stat {
@@ -466,6 +468,7 @@ button.danger:hover { background: #b91c1c; }
 .stat.tone-missed { --c: var(--t-missed); --c-soft: var(--t-missed-soft); }
 .stat.tone-hired { --c: var(--t-hired); --c-soft: var(--t-hired-soft); }
 .stat.tone-started { --c: var(--t-started); --c-soft: var(--t-started-soft); }
+.stat.tone-left { --c: var(--t-left); --c-soft: var(--t-left-soft); }
 .stat.tone-new { --c: var(--t-new); --c-soft: var(--t-new-soft); }
 .stat.tone-new b { color: var(--t-new); }
 
@@ -634,6 +637,7 @@ button.acard.is-new:hover { border-color: var(--pink); }
 .tone-missed { --c: var(--t-missed); --c-soft: var(--t-missed-soft); }
 .tone-hired { --c: var(--t-hired); --c-soft: var(--t-hired-soft); }
 .tone-started { --c: var(--t-started); --c-soft: var(--t-started-soft); }
+.tone-left { --c: var(--t-left); --c-soft: var(--t-left-soft); }
 
 .ac-top {
   display: flex;
@@ -1351,6 +1355,7 @@ button.photo-open img,
 .edit-card.tone-arrived,
 .edit-card.tone-missed,
 .edit-card.tone-started,
+.edit-card.tone-left,
 .edit-card.tone-hired {
   background: var(--c-soft);
   border-color: var(--c);
@@ -1360,6 +1365,7 @@ button.photo-open img,
 .edit-card.tone-arrived > strong,
 .edit-card.tone-missed > strong,
 .edit-card.tone-started > strong,
+.edit-card.tone-left > strong,
 .edit-card.tone-hired > strong { color: var(--c); }
 
 .card-save {

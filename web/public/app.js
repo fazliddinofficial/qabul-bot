@@ -433,6 +433,7 @@ function interviewKey(status) {
   if (status === "arrived") return "arrived";
   if (status === "hired") return "hired";
   if (status === "started") return "started";
+  if (status === "left") return "left";
   if (status === "missed") return "missed";
   if (status === "expected" || status === "called") return "expected";
   return "none";
@@ -445,6 +446,7 @@ const interviewLabels = {
   missed: "Kelmagan",
   hired: "Boshqa joyga ishga kirgan",
   started: "Ishni boshladi",
+  left: "Ishdan bo‘shagan",
 };
 
 function dateMatch(item) {
@@ -459,7 +461,7 @@ function dateMatch(item) {
 }
 
 function statusMatch(item) {
-  if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired" || activeStatus === "started") {
+  if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired" || activeStatus === "started" || activeStatus === "left") {
     return interviewKey(item.interviewStatus) === activeStatus;
   }
   if (activeStatus === "scored") return hasScore(item);
@@ -679,8 +681,9 @@ function render() {
     ["none", "Chaqirilmagan", tileCount("none"), "Javob kutmoqda"],
     ["expected", "Chaqirildi", tileCount("expected"), "Suhbatga"],
     ["arrived", "Zaxirada", tileCount("arrived"), "Keyinroq olinadi"],
-    ["hired", "Boshqa joyda", tileCount("hired"), "Boshqa joyga ishga kirgan"],
+    ["hired", "Boshqa joyda", tileCount("hired"), "Boshqa ishga kirgan"],
     ["started", "Ishni boshladi", tileCount("started"), "Ish boshlagan"],
+    ["left", "Bo‘shagan", tileCount("left"), "Ishlab, ketgan"],
   ];
   // Eski "Kelmagan" yozuvlari bo'lsa ham ko'rinib tursin
   if (tileCount("missed")) tiles.push(["missed", "Kelmagan", tileCount("missed"), "Eski holat"]);
@@ -717,6 +720,7 @@ function render() {
       { value: "arrived", label: `Zaxirada (${countStatus("arrived")})` },
       { value: "hired", label: `Boshqa joyga ishga kirgan (${countStatus("hired")})` },
       { value: "started", label: `Ishni boshladi (${countStatus("started")})` },
+      { value: "left", label: `Ishdan bo‘shagan (${countStatus("left")})` },
       ...(countStatus("missed") ? [{ value: "missed", label: `Kelmagan (${countStatus("missed")})` }] : []),
       { value: "scored", label: `Ball qo‘yilgan (${scoredCount})` },
     ],
@@ -1175,6 +1179,7 @@ async function openDetail(id, silent = false) {
               <button type="button" class="tone-arrived" data-call="arrived"><i></i>Zaxirada</button>
               <button type="button" class="tone-hired" data-call="hired"><i></i>Boshqa joyga ishga kirgan</button>
               <button type="button" class="tone-started" data-call="started"><i></i>Ishni boshladi</button>
+              <button type="button" class="tone-left" data-call="left"><i></i>Ishdan bo‘shagan</button>
             </div>`,
           )}
           ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="datetime-local" value="${esc(item.interviewAt || "")}" />`)}
@@ -1316,7 +1321,7 @@ async function openDetail(id, silent = false) {
 
   const interviewCard = detailBody.querySelector('[data-edit="interviewStatus"]');
   function paintInterview(card) {
-    const tones = ["tone-none", "tone-expected", "tone-arrived", "tone-missed", "tone-hired", "tone-started"];
+    const tones = ["tone-none", "tone-expected", "tone-arrived", "tone-missed", "tone-hired", "tone-started", "tone-left"];
     const pass = detailBody.querySelector("#pass-card");
     for (const el of [card, pass].filter(Boolean)) {
       el.classList.remove(...tones);

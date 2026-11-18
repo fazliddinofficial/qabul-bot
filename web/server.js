@@ -99,6 +99,7 @@ const statusNames = {
   missed: "Kelmagan",
   hired: "Boshqa joyga ishga kirgan",
   started: "Ishni boshladi",
+  left: "Ishdan bo‘shagan",
 };
 
 function shown(key, value) {
