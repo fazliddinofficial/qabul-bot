@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /root/qabul-bot
+            cd /opt/qabul-bot
             git pull origin master
             npm install
             pm2 restart qabul-bot
