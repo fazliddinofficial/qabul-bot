@@ -58,6 +58,60 @@ let activeStatus = "";
 let activeSort = "newest";
 let archiveMode = false;
 
+// Ro'yxat bo'lib-bo'lib chiziladi: 1000+ kartochkani bir yo'la chizish sahifani qotirardi
+const RENDER_STEP = 60;
+let renderLimit = RENDER_STEP;
+let moreObserver = null;
+
+function resetPaging() {
+  renderLimit = RENDER_STEP;
+}
+
+function moreHtml(total) {
+  if (total <= renderLimit) return "";
+  const left = total - renderLimit;
+  return `
+    <div class="load-more" id="load-more">
+      <button type="button" id="load-more-btn">
+        Yana ko‘rsatish <b>${Math.min(RENDER_STEP, left)}</b>
+        <small>qolgan ${left} ta</small>
+      </button>
+    </div>`;
+}
+
+function showMore() {
+  renderLimit += RENDER_STEP;
+  render();
+}
+
+// Pastga yaqinlashganda keyingi kartochkalar o'zi qo'shiladi
+function watchLoadMore() {
+  moreObserver?.disconnect();
+  const box = document.querySelector("#load-more");
+  if (!box) return;
+  box.querySelector("#load-more-btn")?.addEventListener("click", showMore);
+  if (!("IntersectionObserver" in window)) return;
+  moreObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      moreObserver.disconnect();
+      showMore();
+    }
+  }, { rootMargin: "800px 0px" });
+  moreObserver.observe(box);
+}
+
+// Zaxira: IntersectionObserver ishlamasa ham, pastga yaqinlashganda yuklanadi
+let moreScrollTick = false;
+window.addEventListener("scroll", () => {
+  if (moreScrollTick) return;
+  moreScrollTick = true;
+  setTimeout(() => {
+    moreScrollTick = false;
+    const box = document.querySelector("#load-more");
+    if (box && box.getBoundingClientRect().top < window.innerHeight + 800) showMore();
+  }, 150);
+}, { passive: true });
+
 function canChange() {
   return currentUser?.role === "admin" || Boolean(currentUser?.canEdit);
 }
@@ -744,6 +798,13 @@ function render() {
     : found;
   if (activeSort === "favorite") visible = visible.filter((item) => item.favorite);
   const sort = activeSort;
+  const totalVisible = visible.length;
+  let budget = renderLimit;
+  const take = (list) => {
+    const part = list.slice(0, Math.max(0, budget));
+    budget -= part.length;
+    return part;
+  };
 
   if (!visible.length) {
     listEl.innerHTML = `
@@ -758,11 +819,11 @@ function render() {
   if (sort === "position" && !activePosition) {
     listEl.innerHTML = directions
       .map((name) => {
-        const cards = visible
+        const shown = take(visible
           .filter((item) => (item.position || "Yo‘nalishsiz") === name)
-          .sort(byDate("newest"))
-          .map(cardHtml)
-          .join("");
+          .sort(byDate("newest")));
+        if (!shown.length) return "";
+        const cards = shown.map(cardHtml).join("");
         return `
           <section class="group">
             <div class="group-head">
@@ -773,7 +834,8 @@ function render() {
             <div class="cards">${cards}</div>
           </section>`;
       })
-      .join("");
+      .join("") + moreHtml(totalVisible);
+    watchLoadMore();
     return;
   }
 
@@ -793,7 +855,10 @@ function render() {
       old: '<path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/>',
     };
     listEl.innerHTML = buckets
-      .map((bucket) => `
+      .map((bucket) => {
+        const shown = take(bucket.items);
+        if (!shown.length) return "";
+        return `
         <section class="group bucket bucket-${bucket.tone}">
           <div class="group-head">
             <span class="bucket-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${bucketIcon[bucket.tone] || bucketIcon.old}</svg></span>
@@ -801,9 +866,11 @@ function render() {
             <span class="badge">${bucket.items.length} ta</span>
             ${activePosition ? `<span class="group-sub">${esc(activePosition)}</span>` : ""}
           </div>
-          <div class="cards">${bucket.items.map(cardHtml).join("")}</div>
-        </section>`)
-      .join("");
+          <div class="cards">${shown.map(cardHtml).join("")}</div>
+        </section>`;
+      })
+      .join("") + moreHtml(totalVisible);
+    watchLoadMore();
     return;
   }
 
@@ -819,8 +886,9 @@ function render() {
         <h2>${esc(title)}</h2>
         <span class="badge">${visible.length} ta</span>
       </div>
-      <div class="cards">${visible.map(cardHtml).join("")}</div>
-    </section>`;
+      <div class="cards">${take(visible).map(cardHtml).join("")}</div>
+    </section>${moreHtml(totalVisible)}`;
+  watchLoadMore();
 }
 
 async function loadApplications() {
@@ -2021,6 +2089,18 @@ searchEl.addEventListener("input", () => {
   timer = setTimeout(render, 200);
   renderSearchResults();
 });
+
+// Filtr, qidiruv yoki saralash o'zgarsa — ro'yxat yana boshidan (60 ta) chiziladi
+[
+  [searchEl, "input"],
+  [chipsEl, "click"],
+  [statsEl, "click"],
+  [document.querySelector("#reset-filters"), "click"],
+  [sortEl, "change"],
+  [statusEl, "change"],
+  [dateFromEl, "change"],
+  [dateToEl, "change"],
+].forEach(([el, type]) => el?.addEventListener(type, resetPaging, true));
 
 // ===== Qidiruv ostidagi natijalar ro'yxati =====
 const searchResults = document.querySelector("#search-results");

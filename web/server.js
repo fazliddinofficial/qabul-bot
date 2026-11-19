@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import session from "express-session";
 import crypto from "crypto";
 import path from "path";
@@ -155,6 +156,8 @@ export async function startWeb() {
 
   const app = express();
   app.disable("x-powered-by");
+  // Javoblarni gzip bilan siqamiz: 1,8 MB ariza ro'yxati ~10 barobar kichrayadi
+  app.use(compression());
   app.use(express.json({ limit: "4mb" }));
   app.use(
     session({

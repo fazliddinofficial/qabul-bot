@@ -2744,6 +2744,36 @@ label.logo-btn.upload { background: linear-gradient(135deg, #ec4899, #db2777); c
   .sr-item .status-pill { display: none; }
 }
 
+/* ============ Tezlik ============ */
+/* ekrandan tashqaridagi kartochkalar chizilmaydi — uzun ro'yxatda aylantirish yengil bo'ladi */
+button.acard {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 250px;
+}
+/* tepadagi panelning xira (blur) foni har aylantirishda butun sahifani qayta chizdirardi */
+.topbar,
+.arc-top {
+  backdrop-filter: none;
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+}
+
+.load-more { display: flex; justify-content: center; padding: 8px 0 4px; }
+#load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+}
+#load-more-btn:hover { border-color: var(--hover-line); background: var(--surface-2); }
+#load-more-btn b { color: var(--accent); }
+#load-more-btn small { color: var(--muted); font-weight: 500; }
+
 /* ============ Responsive ============ */
 @media (max-width: 1200px) {
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }

@@ -131,6 +131,9 @@ const activitySchema = new mongoose.Schema(
 const User = mongoose.models.ApplicantUser || mongoose.model("ApplicantUser", userSchema);
 const Staff = mongoose.models.StaffUser || mongoose.model("StaffUser", staffSchema);
 const Activity = mongoose.models.ActivityLog || mongoose.model("ActivityLog", activitySchema);
+// Ro'yxat har doim shu tartibda so'raladi: egasi, arxiv, eng yangisi birinchi
+applicationSchema.index({ ownerToken: 1, archived: 1, createdAt: -1 });
+
 const Application =
   mongoose.models.Application || mongoose.model("Application", applicationSchema);
 
@@ -452,6 +455,7 @@ export async function connectDb(uri) {
   mongoose.set("strictQuery", true);
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10000 });
   await markExistingApplicationsSeen();
+  ensureContractNumbers();
 }
 
 async function markExistingApplicationsSeen() {
@@ -548,6 +552,21 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Shartnoma raqamlarini tekshirish barcha arizalarni ko'rib chiqadi (~0,5 s).
+// Avval har bir ro'yxat va har bir ariza ochilganda ishlardi — panel sekinlashardi.
+// Endi faqat server ishga tushganda va importdan keyin bir marta ishlaydi;
+// yangi arizalar raqamni saqlanayotganda oladi, tahrirda raqam takrorlanishi tekshiriladi.
+let contractNumbersReady = null;
+function ensureContractNumbers() {
+  if (!contractNumbersReady) {
+    contractNumbersReady = assignContractNumbers().catch((error) => {
+      contractNumbersReady = null;
+      console.error("Shartnoma raqamlari tekshirilmadi:", error.message);
+    });
+  }
+  return contractNumbersReady;
+}
+
 async function assignContractNumbers() {
   const rows = await Application.find({ ownerToken: ownerToken() })
     .select("contractNumber")
@@ -568,7 +587,7 @@ async function assignContractNumbers() {
 }
 
 export async function listApplications({ q, position, archived } = {}) {
-  await assignContractNumbers();
+  await ensureContractNumbers();
   const filter = {
     ownerToken: ownerToken(),
     archived: archived ? true : { $ne: true },
@@ -614,7 +633,7 @@ export async function markApplicationSeen(id) {
 
 export async function getApplicationById(id) {
   if (!mongoose.isValidObjectId(id)) return null;
-  await assignContractNumbers();
+  await ensureContractNumbers();
 
   return Application.findOne({
     _id: id,
@@ -1082,5 +1101,7 @@ export async function importApplications(rows) {
     await Application.create(doc);
     added += 1;
   }
+  // import qilingan raqamlar takrorlanmasligi uchun bir marta qayta tekshiramiz
+  if (added) await assignContractNumbers();
   return { added, skipped };
 }
