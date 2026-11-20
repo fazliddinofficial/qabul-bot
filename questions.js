@@ -21,6 +21,13 @@ function isImageDocument(document) {
   );
 }
 
+// Kontakt nomzodning o'ziniki ekanini tekshiradi ("ulashish" tugmasi shunday yuboradi).
+// 📎 orqali boshqa odamning kontakti yuborilsa user_id boshqacha yoki bo'sh bo'ladi.
+export function isOwnContact(ctx) {
+  const contact = ctx.message?.contact;
+  return Boolean(contact?.user_id && contact.user_id === ctx.from?.id);
+}
+
 export const questions = [
   {
     id: "photo",
@@ -188,48 +195,17 @@ export const questions = [
     extract: (ctx) => ctx.message.text.trim(),
   },
   {
-    id: "parentPhone",
-    text: "13) Qo'shimcha telefon raqam yoki ota-onangizning telefon raqamini kiriting:",
-    type: "text",
-    validate: (ctx) => {
-      const phone = ctx.message?.text?.replace(/\s/g, "") || "";
-      return /^\+?\d{9,13}$/.test(phone);
-    },
-    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567 yoki 901234567",
-    extract: (ctx) => ctx.message.text.trim(),
-  },
-  {
-    id: "languageLevel",
-    text: "14) Til bilish darajangiz: (IELTSda yoki CEFRda)",
-    type: "text",
-    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
-    errorMsg: "❌ Iltimos, til bilish darajangizni kiriting!",
-    extract: (ctx) => ctx.message.text.trim(),
-  },
-  {
-    id: "workHours",
-    text: "15) Soat nechidan nechigacha ishlay olasiz?",
-    type: "text",
-    validate: (ctx) => WORK_SHIFTS.includes(ctx.message?.text?.trim()),
-    errorMsg: "❌ Iltimos, pastdagi tugmalardan birini tanlang!",
-    extract: (ctx) => ctx.message.text.trim(),
-  },
-  {
-    id: "expectedSalary",
-    text: "16) Bizdan qancha oylikga ishlamoqchisiz? Summani faqat raqamda kiriting:",
-    type: "text",
-    validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
-    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 5000000",
-    extract: (ctx) => salaryAmount(ctx.message.text),
-  },
-  {
     id: "phone",
-    text: "17) O'zingizning shaxsiy telefon raqamingizni kiriting. Qo'shimcha yoki ota-ona raqamidan farq qilishi shart:",
+    text: `13) O'zingizning shaxsiy telefon raqamingizni kiriting.
+
+📌 Raqamni yozib yuboring (misol: +998901234567) yoki pastdagi «📞 Telefon raqamni ulashish» tugmasini bosing.
+⚠️ Tugma Telegram akkauntingiz ochilgan raqamni yuboradi. Hozir boshqa raqam ishlatsangiz, uni yozib yuboring.`,
     type: "contact",
-    // Faqat haqiqiy raqam: "📞 Telefon raqamni ulashish" tugmasi yoki 9–13 ta raqam.
-    // Avval istalgan matn o'tib ketardi (masalan "Ishleydo").
+    // Faqat haqiqiy raqam: o'z kontakti ("ulashish" tugmasi) yoki 9–13 ta raqam.
+    // Boshqa odamning kontakti (📎 orqali yuborilgan) qabul qilinmaydi.
     validate: (ctx) => {
-      if (ctx.message?.contact?.phone_number) return true;
+      const contact = ctx.message?.contact;
+      if (contact?.phone_number) return isOwnContact(ctx);
       const phone = ctx.message?.text?.replace(/[\s()-]/g, "") || "";
       return /^\+?\d{9,13}$/.test(phone);
     },
@@ -246,6 +222,41 @@ export const questions = [
 
       return null;
     },
+  },
+  {
+    id: "parentPhone",
+    text: "14) Qo'shimcha telefon raqam yoki ota-onangizning telefon raqamini kiriting. Shaxsiy raqamingizdan farq qilishi shart:",
+    type: "text",
+    validate: (ctx) => {
+      const phone = ctx.message?.text?.replace(/[\s()-]/g, "") || "";
+      return /^\+?\d{9,13}$/.test(phone);
+    },
+    errorMsg: "❌ Noto'g'ri telefon raqam! Misol: +998901234567 yoki 901234567",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "languageLevel",
+    text: "15) Til bilish darajangiz: (IELTSda yoki CEFRda)",
+    type: "text",
+    validate: (ctx) => ctx.message?.text && ctx.message.text.trim().length > 0,
+    errorMsg: "❌ Iltimos, til bilish darajangizni kiriting!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "workHours",
+    text: "16) Soat nechidan nechigacha ishlay olasiz?",
+    type: "text",
+    validate: (ctx) => WORK_SHIFTS.includes(ctx.message?.text?.trim()),
+    errorMsg: "❌ Iltimos, pastdagi tugmalardan birini tanlang!",
+    extract: (ctx) => ctx.message.text.trim(),
+  },
+  {
+    id: "expectedSalary",
+    text: "17) Bizdan qancha oylikga ishlamoqchisiz? Summani faqat raqamda kiriting:",
+    type: "text",
+    validate: (ctx) => Boolean(salaryAmount(ctx.message?.text)),
+    errorMsg: "❌ Iltimos, summani faqat raqamda kiriting! Misol: 5000000",
+    extract: (ctx) => salaryAmount(ctx.message.text),
   },
   {
     id: "foundResource",

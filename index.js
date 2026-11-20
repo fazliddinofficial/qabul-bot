@@ -7,6 +7,7 @@ import {
   incompleteEducationQuestions,
   questions,
   WORK_SHIFTS,
+  isOwnContact,
 } from "./questions.js";
 import { addJobToUser, connectDb, createUser, getUserById, saveApplication } from "./db.js";
 import { startWeb } from "./web/server.js";
@@ -359,6 +360,18 @@ bot.on("message", async (ctx) => {
 
   const currentQuestion = session.questions[session.step];
 
+  // 📎 orqali boshqa odamning kontakti yuborilsa — aniq sababini aytamiz
+  if (
+    currentQuestion.id === "phone" &&
+    ctx.message?.contact?.phone_number &&
+    !isOwnContact(ctx)
+  ) {
+    return ctx.reply(
+      "❌ Bu sizning kontaktingiz emas. Pastdagi «📞 Telefon raqamni ulashish» tugmasini bosing yoki o'zingizning raqamingizni yozib yuboring.",
+      { reply_markup: phoneKeyboard },
+    );
+  }
+
   if (!currentQuestion.validate(ctx)) {
     try {
       // Telefon savolida "ulashish" tugmasi yana ko'rinib tursin
@@ -374,17 +387,24 @@ bot.on("message", async (ctx) => {
 
   const extractedValue = currentQuestion.extract(ctx);
 
+  // Shaxsiy va qo'shimcha raqam bir xil bo'lmasin (qaysi biri avval so'ralishidan qat'i nazar)
   if (
-    currentQuestion.id === "phone" &&
-    phonesMatch(extractedValue, session.answers.parentPhone)
+    (currentQuestion.id === "phone" && phonesMatch(extractedValue, session.answers.parentPhone)) ||
+    (currentQuestion.id === "parentPhone" && phonesMatch(extractedValue, session.answers.phone))
   ) {
     return ctx.reply(
-      "❌ Bu raqam qo'shimcha yoki ota-ona raqamingiz bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting.",
-      { reply_markup: phoneKeyboard },
+      currentQuestion.id === "phone"
+        ? "❌ Bu raqam qo'shimcha yoki ota-ona raqamingiz bilan bir xil! Iltimos, o'zingizning shaxsiy raqamingizni kiriting."
+        : "❌ Bu sizning shaxsiy raqamingiz! Iltimos, boshqa qo'shimcha raqam yoki ota-onangizning raqamini kiriting.",
+      currentQuestion.type === "contact" ? { reply_markup: phoneKeyboard } : undefined,
     );
   }
 
   session.answers[currentQuestion.id] = extractedValue;
+  if (currentQuestion.id === "phone") {
+    // Guruhdagi xabarda raqam qanday kelganini ko'rsatish uchun
+    session.answers.phoneSource = ctx.message?.contact ? "telegram" : "typed";
+  }
   if (currentQuestion.id === "photo") {
     session.answers.photoKind = ctx.message?.photo ? "photo" : "document";
   }
@@ -538,7 +558,7 @@ function recruitmentCaption(answers, ctx) {
 👤 <b>I.F.Sh:</b> ${clipText(answers.fullName, 80)}
 🗓️ <b>Tug'ilgan sanasi:</b> ${clipText(answers.birthday, 20)}
 📍 <b>Manzil:</b> ${clipText(answers.address, limits.address)}
-📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}
+📞 <b>Telefon:</b> ${normalizePhone(answers.phone)}${answers.phoneSource === "telegram" ? " (Telegram akkauntidan)" : ""}
 👨‍👩‍👦 <b>Qo'shimcha yoki ota-ona telefoni:</b> ${normalizePhone(answers.parentPhone)}
 🌍 <b>Millati:</b> ${clipText(answers.nation, 40)}
 
