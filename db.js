@@ -156,6 +156,7 @@ const studentContractSchema = new mongoose.Schema(
     contractCourse: { type: String, default: "" },
     contractMonths: { type: String, default: "" },
     contractPrice: { type: String, default: "" },
+    contractTemplateId: { type: String, default: "" },
     seenAt: { type: Date, default: null },
     passportFront: studentFile,
     passportBack: studentFile,
@@ -175,6 +176,23 @@ const studentContractSchema = new mongoose.Schema(
 studentContractSchema.index({ ownerToken: 1, createdAt: -1 });
 const StudentContract =
   mongoose.models.StudentContract || mongoose.model("StudentContract", studentContractSchema);
+
+// Shartnoma shablonlari — panelga yuklangan Word (.docx) fayllar
+const contractTemplateSchema = new mongoose.Schema(
+  {
+    ownerToken: { type: String, required: true, index: true },
+    name: { type: String, default: "" },
+    fileName: { type: String, default: "" },
+    tags: { type: [String], default: [] },
+    unknownTags: { type: [String], default: [] },
+    size: { type: Number, default: 0 },
+    data: Buffer,
+    createdBy: { type: String, default: "" },
+  },
+  { collection: "contract_templates", timestamps: true },
+);
+const ContractTemplate =
+  mongoose.models.ContractTemplate || mongoose.model("ContractTemplate", contractTemplateSchema);
 
 const User = mongoose.models.ApplicantUser || mongoose.model("ApplicantUser", userSchema);
 const Staff = mongoose.models.StaffUser || mongoose.model("StaffUser", staffSchema);
@@ -1159,6 +1177,7 @@ const STUDENT_TEXT_FIELDS = {
   contractCourse: 120,
   contractMonths: 3,
   contractPrice: 15,
+  contractTemplateId: 40,
 };
 
 function studentText(input) {
@@ -1242,6 +1261,42 @@ export async function updateStudentContract(id, input) {
 export async function deleteStudentContract(id) {
   if (!mongoose.isValidObjectId(id)) return null;
   return StudentContract.findOneAndDelete({ _id: id, ownerToken: ownerToken() }).select("fullName").lean();
+}
+
+export async function listContractTemplates() {
+  return ContractTemplate.find({ ownerToken: ownerToken() }).select("-data").sort({ createdAt: -1 }).lean();
+}
+
+export async function createContractTemplate({ name, fileName, data, tags, unknownTags, createdBy }) {
+  const doc = await ContractTemplate.create({
+    ownerToken: ownerToken(),
+    name: String(name || fileName || "Shablon").replace(/\s+/g, " ").trim().slice(0, 120),
+    fileName: String(fileName || "shablon.docx").slice(0, 160),
+    tags,
+    unknownTags,
+    size: data.length,
+    data,
+    createdBy: String(createdBy || "").slice(0, 120),
+  });
+  const { data: _omit, ...rest } = doc.toObject();
+  return rest;
+}
+
+export async function getContractTemplateFile(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  const doc = await ContractTemplate.findOne({ _id: id, ownerToken: ownerToken() }).lean();
+  if (!doc?.data) return null;
+  return { ...doc, data: fileBuffer(doc.data) };
+}
+
+export async function deleteContractTemplate(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return ContractTemplate.findOneAndDelete({ _id: id, ownerToken: ownerToken() }).select("name").lean();
+}
+
+export async function getStudentContractFull(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return StudentContract.findOne({ _id: id, ownerToken: ownerToken() }).select(studentWithoutFiles).lean();
 }
 
 export async function getStudentContractFile(id, slot) {

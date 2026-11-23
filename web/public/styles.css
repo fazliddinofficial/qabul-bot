@@ -3302,3 +3302,121 @@ dialog#students-dialog {
   .stu-contract-grid { grid-template-columns: 1fr; }
   .stu-actions { flex-wrap: wrap; }
 }
+
+/* ============ Shartnoma shablonlari ============ */
+.tpl-open { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.tpl-open svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.stu-field select {
+  width: 100%;
+  height: 40px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.tpl-how {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #6366f1 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, #6366f1 30%, var(--line));
+}
+.tpl-how ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; line-height: 1.45; flex: 1 1 420px; }
+.tpl-how code, .tpl-tags code, .tpl-tag code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #6366f1 14%, transparent);
+  color: var(--accent);
+}
+.tpl-example, .tpl-dl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tpl-example:hover, .tpl-dl:hover { background: var(--surface-2); }
+.tpl-upload {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.tpl-file input[type="file"] { padding: 7px 10px; font-size: 13px; font-weight: 500; }
+.tpl-submit { height: 40px; justify-content: center; }
+.tpl-msg { grid-column: 1 / -1; margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.tpl-msg:empty { display: none; }
+.tpl-msg.ok { color: var(--t-today); }
+.tpl-msg.warn { color: var(--t-none); }
+.tpl-msg.bad { color: var(--danger); }
+.tpl-list { display: grid; gap: 10px; }
+.tpl-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.tpl-card-ico {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, #2563eb 14%, transparent);
+  color: #2563eb;
+}
+.tpl-card-ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tpl-card-main { min-width: 0; display: grid; gap: 4px; }
+.tpl-card-main h3 { margin: 0; font-size: 16px; }
+.tpl-card-main .muted { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.tpl-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tpl-tags code.ok { background: color-mix(in srgb, #10b981 14%, transparent); color: #059669; }
+.tpl-tags code.bad { background: var(--danger-soft); color: var(--danger); text-decoration: underline wavy; }
+.tpl-warn { color: var(--t-none); font-size: 12.5px; font-weight: 600; }
+.tpl-card-actions { display: flex; flex-direction: column; gap: 6px; }
+.tpl-empty { padding: 28px 16px; }
+.tpl-legend h3 { margin: 0 0 8px; font-size: 15px; }
+.tpl-legend h3 .muted { font-weight: 500; font-size: 13px; }
+.tpl-legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px; }
+.tpl-tag {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "code label" "code sample";
+  align-items: center;
+  gap: 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: none;
+}
+.tpl-tag:hover { background: var(--surface-2); border-color: var(--hover-line); }
+.tpl-tag code { grid-area: code; }
+.tpl-tag span { grid-area: label; font-size: 12.5px; font-weight: 600; }
+.tpl-tag em { grid-area: sample; font-style: normal; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-tag.copied { border-color: var(--t-today); background: var(--t-today-soft); }
+.tpl-tag.copied span::after { content: " ✓ nusxa olindi"; color: var(--t-today); }
+@media (max-width: 760px) {
+  .tpl-upload, .tpl-card { grid-template-columns: 1fr; }
+  .tpl-card-actions { flex-direction: row; }
+  .tpl-open { padding: 0 12px; }
+}

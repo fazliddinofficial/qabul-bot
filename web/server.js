@@ -40,7 +40,20 @@ import {
   updateStudentContract,
   deleteStudentContract,
   getStudentContractFile,
+  getStudentContractFull,
+  listContractTemplates,
+  createContractTemplate,
+  getContractTemplateFile,
+  deleteContractTemplate,
 } from "../db.js";
+import { TEMPLATE_TAGS, inspectTemplate, fillTemplate } from "./contract-templates.js";
+
+const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function attachmentName(name) {
+  const clean = String(name || "shartnoma").replace(/[\\/:*?"<>|\r\n]+/g, "-").trim() || "shartnoma";
+  return `attachment; filename*=UTF-8''${encodeURIComponent(clean)}`;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -552,6 +565,91 @@ export async function startWeb() {
     const file = await getStudentContractFile(req.params.id, req.params.slot);
     if (!file) return res.status(404).end();
     sendStoredFile(res, file, req.query.download === "1" ? meta.label : "");
+  });
+
+  // Shartnoma shablonlari (o‘z .docx faylingiz, ichida {FISH} kabi belgilar)
+  app.get("/api/contract-templates", requireAuth, async (req, res) => {
+    res.json({ items: await listContractTemplates(), tags: TEMPLATE_TAGS });
+  });
+
+  app.post(
+    "/api/contract-templates",
+    requireAuth,
+    requireEdit,
+    express.raw({ type: () => true, limit: "5mb" }),
+    async (req, res) => {
+      const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const fileName = decodeURIComponent(String(req.headers["x-file-name"] || ""))
+        .split(/[/\\]/)
+        .pop()
+        .replace(/[\r\n\0]/g, "")
+        .trim();
+      const name = decodeURIComponent(String(req.headers["x-template-name"] || "")).trim();
+      if (!data.length) return res.status(400).json({ error: "Fayl bo‘sh" });
+      if (!/\.docx$/i.test(fileName)) {
+        return res.status(400).json({ error: "Faqat Word .docx fayl yuklang (.doc yoki PDF emas)" });
+      }
+      let info;
+      try {
+        info = inspectTemplate(data);
+      } catch (error) {
+        return res.status(error.status || 400).json({ error: error.message });
+      }
+      const actor = actorOf(req);
+      const item = await createContractTemplate({
+        name: name || fileName.replace(/\.docx$/i, ""),
+        fileName,
+        data,
+        tags: info.tags,
+        unknownTags: info.unknown,
+        createdBy: [actor?.surname, actor?.name].filter(Boolean).join(" ") || actor?.username || "",
+      });
+      await recordActivity({ actor, action: "Shartnoma shablonini yukladi", detail: item.name });
+      res.json({ item });
+    },
+  );
+
+  // Namuna: "Шартнома кингс" — bo‘sh joylar o‘rniga belgilar qo‘yilgan
+  app.get("/api/contract-templates/example", requireAuth, (req, res) => {
+    res.setHeader("Content-Disposition", attachmentName("namuna-shablon-oquvchi.docx"));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.type(DOCX_TYPE).sendFile(path.join(__dirname, "templates", "namuna-shablon-oquvchi.docx"));
+  });
+
+  app.get("/api/contract-templates/:id/file", requireAuth, async (req, res) => {
+    const file = await getContractTemplateFile(req.params.id);
+    if (!file) return res.status(404).end();
+    res.setHeader("Content-Type", DOCX_TYPE);
+    res.setHeader("Content-Disposition", attachmentName(file.fileName || `${file.name}.docx`));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.send(file.data);
+  });
+
+  app.delete("/api/contract-templates/:id", requireAuth, requireEdit, async (req, res) => {
+    const item = await deleteContractTemplate(req.params.id);
+    if (!item) return res.status(404).json({ error: "Shablon topilmadi" });
+    await recordActivity({ actor: actorOf(req), action: "Shartnoma shablonini o‘chirdi", detail: item.name || "" });
+    res.json({ ok: true });
+  });
+
+  app.get("/api/student-contracts/:id/render/:templateId", requireAuth, async (req, res) => {
+    const [item, template] = await Promise.all([
+      getStudentContractFull(req.params.id),
+      getContractTemplateFile(req.params.templateId),
+    ]);
+    if (!item) return res.status(404).json({ error: "O‘quvchi topilmadi" });
+    if (!template) return res.status(404).json({ error: "Shablon topilmadi (o‘chirilgan bo‘lishi mumkin)" });
+    let out;
+    try {
+      out = fillTemplate(template.data, item);
+    } catch (error) {
+      return res.status(error.status || 500).json({ error: error.message || "Shartnoma tayyorlanmadi" });
+    }
+    const number = String(item.contractNumber || item.fullName || "").replace(/[\\/]+/g, "-");
+    res.setHeader("Content-Type", DOCX_TYPE);
+    res.setHeader("Content-Disposition", attachmentName(`shartnoma-oquvchi-${number}.docx`));
+    res.setHeader("Cache-Control", "private, no-store");
+    res.send(out);
   });
 
   app.use(express.static(path.join(__dirname, "public")));

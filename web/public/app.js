@@ -2205,6 +2205,18 @@ const studentList = document.querySelector("#stu-list");
 const studentDetail = document.querySelector("#stu-detail");
 const studentSearch = document.querySelector("#stu-search");
 let studentItems = [];
+let contractTemplates = [];
+let templateTags = [];
+
+async function loadContractTemplates() {
+  try {
+    const res = await fetch("/api/contract-templates");
+    if (!res.ok) return;
+    const data = await res.json();
+    contractTemplates = data.items || [];
+    templateTags = data.tags || [];
+  } catch { /* shablonlar ro‘yxati kelmasa standart shartnoma ishlayveradi */ }
+}
 
 const STUDENT_FIELDS = [
   ["fullName", "F.I.Sh", "Familiya Ism Otasining ismi", true],
@@ -2248,6 +2260,7 @@ async function loadStudents() {
   studentItems = data.items || [];
   setStudentBadge(studentItems);
   renderStudents();
+  loadContractTemplates();
 }
 
 function studentThumb(item, cls) {
@@ -2315,6 +2328,7 @@ async function openStudent(id) {
   if (res.status === 401) return showLogin();
   if (!res.ok) return alert("O‘quvchi topilmadi");
   const { item } = await res.json();
+  if (!contractTemplates.length) await loadContractTemplates();
   const index = studentItems.findIndex((entry) => entry._id === id);
   if (index >= 0) studentItems[index] = item;
   setStudentBadge(studentItems);
@@ -2375,6 +2389,13 @@ function renderStudentDetail(item) {
           </div>
         </div>
         <div class="stu-contract-grid">
+          <label class="stu-field span2">
+            <span>Shablon</span>
+            <select name="contractTemplateId" ${editable ? "" : "disabled"}>
+              <option value="">Standart — «Шартнома кингс» (ichki)</option>
+              ${contractTemplates.map((tpl) => `<option value="${esc(tpl._id)}" ${tpl._id === item.contractTemplateId ? "selected" : ""}>${esc(tpl.name)}</option>`).join("")}
+            </select>
+          </label>
           <label class="stu-field">
             <span>Shartnoma raqami</span>
             <input name="contractNumber" value="${esc(item.contractNumber || "")}" placeholder="1/2026" ${editable ? "" : "readonly"} />
@@ -2473,7 +2494,23 @@ function renderStudentDetail(item) {
       ["contractPrice", "summa"],
     ].filter(([key]) => !String(data[key] || "").trim()).map(([, label]) => label);
     if (missing.length && !confirm(`Shartnomada ${missing.join(", ")} yozilmagan — bo‘sh chiziq qoladi. Baribir tayyorlansinmi?`)) return;
-    saveWordFile(buildStudentContractHtml(data), `oquvchi-${data.contractNumber || data.fullName || ""}`.replace(/[\\/:*?"<>|]+/g, "-"));
+    const templateId = form.contractTemplateId?.value || data.contractTemplateId || "";
+    if (!templateId) {
+      saveWordFile(buildStudentContractHtml(data), `oquvchi-${data.contractNumber || data.fullName || ""}`.replace(/[\\/:*?"<>|]+/g, "-"));
+      return;
+    }
+    const res = await fetch(`/api/student-contracts/${encodeURIComponent(item._id)}/render/${encodeURIComponent(templateId)}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "Shartnoma tayyorlanmadi");
+      return;
+    }
+    const blob = await res.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `shartnoma-oquvchi-${String(data.contractNumber || data.fullName || "").replace(/[\\/:*?"<>|]+/g, "-")}.docx`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   });
   form.addEventListener("input", () => {
     studentDetail.querySelector("#stu-saved").textContent = "";
@@ -2497,6 +2534,145 @@ function renderStudentDetail(item) {
     showStudentList();
   });
 }
+
+function fileSize(bytes) {
+  const n = Number(bytes) || 0;
+  return n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+
+function renderTemplates() {
+  const editable = canChange();
+  studentsDialog.querySelector(".arc-head").classList.add("hidden");
+  studentList.classList.add("hidden");
+  studentDetail.classList.remove("hidden");
+  const cards = contractTemplates.length
+    ? contractTemplates.map((tpl) => `
+      <article class="tpl-card">
+        <span class="tpl-card-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span>
+        <div class="tpl-card-main">
+          <h3>${esc(tpl.name)}</h3>
+          <p class="muted">${esc(tpl.fileName)} · ${fileSize(tpl.size)} · ${esc(formatDate(tpl.createdAt) || "")}${tpl.createdBy ? ` · ${esc(tpl.createdBy)}` : ""}</p>
+          <div class="tpl-tags">
+            ${(tpl.tags || []).map((tag) => `<code class="ok">{${esc(tag)}}</code>`).join("") || `<span class="tpl-warn">Ichida birorta ham belgi topilmadi — shartnoma o‘zgarmay chiqadi</span>`}
+            ${(tpl.unknownTags || []).map((tag) => `<code class="bad" title="Noma’lum belgi — bo‘sh chiziq bo‘lib chiqadi">{${esc(tag)}}</code>`).join("")}
+          </div>
+        </div>
+        <div class="tpl-card-actions">
+          <a class="arc-btn tpl-dl" href="/api/contract-templates/${esc(tpl._id)}/file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 19h14"/></svg>Yuklab olish</a>
+          ${editable ? `<button type="button" class="arc-btn purge" data-tpl-delete="${esc(tpl._id)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>O‘chirish</button>` : ""}
+        </div>
+      </article>`).join("")
+    : `<div class="empty tpl-empty"><strong>Hali shablon yuklanmagan</strong><p>Hozircha «Standart — Шартнома кингс» ishlatiladi. Pastdagi namunani yuklab, o‘zgartirib, qayta yuklang.</p></div>`;
+  const tags = templateTags.map(([tag, label, sample]) => `
+    <button type="button" class="tpl-tag" data-copy="{${esc(tag)}}" title="Nusxa olish">
+      <code>{${esc(tag)}}</code><span>${esc(label)}</span><em>${esc(sample)}</em>
+    </button>`).join("");
+  studentDetail.innerHTML = `
+    <div class="stu-detail-head">
+      <button type="button" class="arc-back" id="tpl-back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>Ro‘yxatga qaytish</button>
+      <div class="stu-detail-title">
+        <span class="dialog-ico stu-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span>
+        <div>
+          <p class="eyebrow">O‘quvchilar shartnomasi</p>
+          <h2>Shartnoma shablonlari</h2>
+          <p class="muted">O‘z Word shartnomangizni yuklang — ichidagi belgilar o‘quvchi ma’lumoti bilan to‘ldiriladi</p>
+        </div>
+      </div>
+    </div>
+    <section class="tpl-how">
+      <ol>
+        <li><b>Namunani yuklab oling</b> yoki o‘z Word (.docx) shartnomangizni oching.</li>
+        <li>O‘zgaradigan joylarga pastdagi belgilarni yozing, masalan <code>{FISH}</code>, <code>{SUMMA} ({SUMMA_SOZ}) сўм</code>. Belgini bosing — nusxa olinadi.</li>
+        <li>Faylni <b>.docx</b> qilib saqlang va shu yerga yuklang. Keyin o‘quvchi kartasida «Shablon» dan tanlab, «Shartnomani tayyorlash» ni bosing.</li>
+      </ol>
+      <a class="arc-btn tpl-example" href="/api/contract-templates/example"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 19h14"/></svg>Namuna shablon (Шартнома кингс)</a>
+    </section>
+    ${editable ? `
+    <form class="tpl-upload" id="tpl-upload">
+      <label class="stu-field">
+        <span>Shablon nomi</span>
+        <input name="name" placeholder="Masalan: Ingliz tili — 3 oylik" maxlength="120" />
+      </label>
+      <label class="stu-field tpl-file">
+        <span>Word fayl (.docx)</span>
+        <input name="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required />
+      </label>
+      <button type="submit" class="stu-make tpl-submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V6M8 10l4-4 4 4M5 19h14"/></svg>Yuklash</button>
+      <p class="tpl-msg" id="tpl-msg"></p>
+    </form>` : ""}
+    <section class="tpl-list">${cards}</section>
+    <section class="tpl-legend">
+      <h3>Belgilar <span class="muted">— bosing, nusxa olinadi</span></h3>
+      <div class="tpl-legend-grid">${tags}</div>
+    </section>`;
+  studentDetail.querySelector("#tpl-back").addEventListener("click", showStudentList);
+  studentDetail.querySelectorAll("[data-copy]").forEach((button) => button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(button.dataset.copy);
+      button.classList.add("copied");
+      setTimeout(() => button.classList.remove("copied"), 900);
+    } catch { /* nusxa olinmasa ham belgi ko‘rinib turadi */ }
+  }));
+  studentDetail.querySelectorAll("[data-tpl-delete]").forEach((button) => button.addEventListener("click", async () => {
+    const tpl = contractTemplates.find((entry) => entry._id === button.dataset.tplDelete);
+    if (!confirm(`«${tpl?.name || "Shablon"}» o‘chirilsinmi? Bu shablonni tanlagan o‘quvchilarda standart shartnoma ishlatiladi.`)) return;
+    const res = await fetch(`/api/contract-templates/${encodeURIComponent(button.dataset.tplDelete)}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.error || "O‘chirilmadi");
+      return;
+    }
+    await loadContractTemplates();
+    renderTemplates();
+  }));
+  studentDetail.querySelector("#tpl-upload")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formEl = event.target;
+    const file = formEl.file.files?.[0];
+    const msg = studentDetail.querySelector("#tpl-msg");
+    if (!file) return;
+    if (!/\.docx$/i.test(file.name)) {
+      msg.textContent = "Faqat .docx fayl. Word’da «Сохранить как» → «Документ Word (.docx)» qilib saqlang.";
+      msg.className = "tpl-msg bad";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      msg.textContent = "Fayl 5 MB dan katta bo‘lmasin.";
+      msg.className = "tpl-msg bad";
+      return;
+    }
+    msg.textContent = "Yuklanmoqda...";
+    msg.className = "tpl-msg";
+    const res = await fetch("/api/contract-templates", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-File-Name": encodeURIComponent(file.name),
+        "X-Template-Name": encodeURIComponent(formEl.name.value.trim()),
+      },
+      body: file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      msg.textContent = data.error || "Yuklanmadi";
+      msg.className = "tpl-msg bad";
+      return;
+    }
+    await loadContractTemplates();
+    renderTemplates();
+    const fresh = studentDetail.querySelector("#tpl-msg");
+    if (fresh) {
+      const unknown = data.item?.unknownTags || [];
+      fresh.textContent = `✓ «${data.item?.name}» yuklandi — ${data.item?.tags?.length || 0} ta belgi topildi${unknown.length ? `, noma’lum: ${unknown.map((t) => `{${t}}`).join(", ")}` : ""}.`;
+      fresh.className = `tpl-msg ${unknown.length ? "warn" : "ok"}`;
+    }
+  });
+}
+
+document.querySelector("#open-templates").addEventListener("click", async () => {
+  await loadContractTemplates();
+  renderTemplates();
+});
 
 studentSearch.addEventListener("input", renderStudents);
 studentList.addEventListener("click", (event) => {
