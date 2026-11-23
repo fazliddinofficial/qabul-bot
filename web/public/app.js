@@ -1533,6 +1533,7 @@ async function openDetail(id, silent = false) {
     ["passportFront", "Pasport oldi", item.hasPassportFront, item.passportFrontName, item.passportFrontType],
     ["passportBack", "Pasport orqasi", item.hasPassportBack, item.passportBackName, item.passportBackType],
     ["diploma", "Diplom", item.hasDiploma, item.diplomaName, item.diplomaType],
+    ["diplomaAppendix", "Diplom ilovasi", item.hasDiplomaAppendix, item.diplomaAppendixName, item.diplomaAppendixType],
     ["certificate", "Sertifikat", item.hasCertificate, item.certificateName, item.certificateType],
     ["signedContract", "Imzolangan shartnoma", item.hasSignedContract, item.signedContractName, item.signedContractType, "application/pdf,.pdf"],
   ];
@@ -1540,6 +1541,7 @@ async function openDetail(id, silent = false) {
     passportFront: ["idcard", "#0ea5e9"],
     passportBack: ["idcard", "#14b8a6"],
     diploma: ["cap", "#6366f1"],
+    diplomaAppendix: ["file", "#8b5cf6"],
     certificate: ["award", "#f59e0b"],
     signedContract: ["file", "#10b981"],
   };

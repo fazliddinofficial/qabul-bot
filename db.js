@@ -64,21 +64,25 @@ const applicationSchema = new mongoose.Schema(
     passportFront: { data: Buffer, contentType: { type: String, default: "" } },
     passportBack: { data: Buffer, contentType: { type: String, default: "" } },
     diploma: { data: Buffer, contentType: { type: String, default: "" } },
+    diplomaAppendix: { data: Buffer, contentType: { type: String, default: "" } },
     certificate: { data: Buffer, contentType: { type: String, default: "" } },
     signedContract: { data: Buffer, contentType: { type: String, default: "" } },
     hasPassportFront: { type: Boolean, default: false },
     hasPassportBack: { type: Boolean, default: false },
     hasDiploma: { type: Boolean, default: false },
+    hasDiplomaAppendix: { type: Boolean, default: false },
     hasCertificate: { type: Boolean, default: false },
     hasSignedContract: { type: Boolean, default: false },
     passportFrontType: { type: String, default: "" },
     passportBackType: { type: String, default: "" },
     diplomaType: { type: String, default: "" },
+    diplomaAppendixType: { type: String, default: "" },
     certificateType: { type: String, default: "" },
     signedContractType: { type: String, default: "" },
     passportFrontName: { type: String, default: "" },
     passportBackName: { type: String, default: "" },
     diplomaName: { type: String, default: "" },
+    diplomaAppendixName: { type: String, default: "" },
     certificateName: { type: String, default: "" },
     signedContractName: { type: String, default: "" },
     interviewerId: { type: String, default: "" },
@@ -138,12 +142,13 @@ const Application =
   mongoose.models.Application || mongoose.model("Application", applicationSchema);
 
 const withoutFiles =
-  "-photo -passportFront -passportBack -diploma -certificate -signedContract";
+  "-photo -passportFront -passportBack -diploma -diplomaAppendix -certificate -signedContract";
 
 export const DOC_SLOTS = {
   passportFront: { flag: "hasPassportFront", typeField: "passportFrontType", nameField: "passportFrontName", label: "Pasport oldi" },
   passportBack: { flag: "hasPassportBack", typeField: "passportBackType", nameField: "passportBackName", label: "Pasport orqasi" },
   diploma: { flag: "hasDiploma", typeField: "diplomaType", nameField: "diplomaName", label: "Diplom" },
+  diplomaAppendix: { flag: "hasDiplomaAppendix", typeField: "diplomaAppendixType", nameField: "diplomaAppendixName", label: "Diplom ilovasi" },
   certificate: { flag: "hasCertificate", typeField: "certificateType", nameField: "certificateName", label: "Sertifikat" },
   signedContract: { flag: "hasSignedContract", typeField: "signedContractType", nameField: "signedContractName", label: "Imzolangan shartnoma" },
 };
@@ -520,6 +525,7 @@ async function downloadTelegramFile(fileId) {
   let contentType = "image/jpeg";
   if (path.endsWith(".png")) contentType = "image/png";
   if (path.endsWith(".webp")) contentType = "image/webp";
+  if (path.endsWith(".pdf")) contentType = "application/pdf";
 
   return {
     data: Buffer.from(await fileRes.arrayBuffer()),
@@ -873,6 +879,7 @@ export async function updateApplicationReview(id, input, actor) {
   delete item.passportFront;
   delete item.passportBack;
   delete item.diploma;
+  delete item.diplomaAppendix;
   delete item.certificate;
   delete item.signedContract;
   return item;
@@ -1027,6 +1034,62 @@ export async function saveApplication({ telegramUserId, username, answers }) {
   }
 
   return Application.create(doc);
+}
+
+// Botdagi "📄 Shartnoma qilish" orqali kelgan hujjatlar va pasport ma'lumotlari.
+// Xodimning eng oxirgi (arxivlanmagan) arizasiga yoziladi; arizasi bo'lmasa yangisi ochiladi.
+const CONTRACT_FILE_SLOTS = ["passportFront", "passportBack", "diploma", "diplomaAppendix", "certificate"];
+
+export async function saveContractSubmission({ telegramUserId, username, answers }) {
+  const parts = String(answers.fullName || "").trim().split(/\s+/).filter(Boolean);
+  const set = {
+    fullName: parts.join(" ").slice(0, 200),
+    fatherName: parts.slice(2).join(" ").slice(0, 120),
+    birthday: String(answers.birthday || "").slice(0, 20),
+    passportSeries: String(answers.passportSeries || "").slice(0, 20),
+    passportIssued: String(answers.passportIssued || "").slice(0, 20),
+    passportIssuer: String(answers.passportIssuer || "").slice(0, 120),
+    jshshir: String(answers.jshshir || "").replace(/\D/g, "").slice(0, 14),
+    address: String(answers.address || "").slice(0, 300),
+    phone: String(answers.phone || "").slice(0, 40),
+  };
+  if (username) set.username = username;
+
+  for (const slot of CONTRACT_FILE_SLOTS) {
+    const file = answers[slot];
+    if (!file?.fileId) continue;
+    const meta = DOC_SLOTS[slot];
+    const downloaded = await downloadTelegramFileWithRetry(file.fileId);
+    const contentType = file.kind === "pdf" ? "application/pdf" : downloaded.contentType;
+    const ext = contentType === "application/pdf" ? "pdf" : contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+    set[slot] = { data: downloaded.data, contentType };
+    set[meta.flag] = true;
+    set[meta.typeField] = contentType;
+    set[meta.nameField] = String(file.fileName || `${meta.label}.${ext}`).slice(0, 120);
+  }
+
+  const existing = await Application.findOne({
+    ownerToken: ownerToken(),
+    telegramUserId: String(telegramUserId),
+    archived: { $ne: true },
+  })
+    .sort({ createdAt: -1 })
+    .select("_id")
+    .lean();
+
+  if (existing) {
+    await Application.updateOne({ _id: existing._id }, { $set: set });
+    return { id: String(existing._id), created: false };
+  }
+
+  const doc = await Application.create({
+    ownerToken: ownerToken(),
+    telegramUserId: String(telegramUserId),
+    contractNumber: await nextContractNumber(),
+    note: "Bot orqali shartnoma uchun ma'lumot yubordi (avval ariza topshirmagan).",
+    ...set,
+  });
+  return { id: String(doc._id), created: true };
 }
 
 const importStatuses = {

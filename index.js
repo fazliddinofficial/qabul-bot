@@ -9,7 +9,8 @@ import {
   WORK_SHIFTS,
   isOwnContact,
 } from "./questions.js";
-import { addJobToUser, connectDb, createUser, getUserById, saveApplication } from "./db.js";
+import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission } from "./db.js";
+import { registerContractFlow } from "./contract.js";
 import { startWeb } from "./web/server.js";
 import { CronosExpression, CronosTask } from "cronosjs";
 
@@ -204,9 +205,10 @@ async function sendDailyStatus() {
 
 async function checkInactiveUsers() {
   for (const [userId, session] of sessions.entries()) {
-    const progress = Math.round((session.step / questions.length) * 100);
+    const total = session.questions?.length || questions.length;
+    const progress = Math.round((session.step / total) * 100);
 
-    if (session.step >= questions.length) {
+    if (session.step >= total) {
       console.log(`⏭️ User ${userId}: Form already completed`);
       sessions.delete(userId);
       continue;
@@ -217,7 +219,7 @@ async function checkInactiveUsers() {
         userId,
         `⏰ <b>Eslatma!</b>\n\n` +
           `Arizangiz tugallanmagan.\n` +
-          `📊 Progress: ${progress}% (${session.step}/${questions.length})\n\n` +
+          `📊 Progress: ${progress}% (${session.step}/${total})\n\n` +
           `Davom etish uchun javob yuboring!`,
         { parse_mode: "HTML" },
       );
@@ -248,14 +250,36 @@ bot.start(async (ctx) => {
     await ctx.reply(
       `Assalomu alaykum! Botimizga xush kelibsiz. Botimizdan ishga birinchi marta topshirayapsizmi?`,
       Markup.inlineKeyboard([
-        Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
-        Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
+        [
+          Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
+          Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
+        ],
+        [Markup.button.callback("📄 Shartnoma qilish", "contract")],
       ]),
     );
   } catch (error) {
     console.log(`❌ Start failed for ${ctx.from.id}: ${error.message}`);
     sessions.delete(ctx.from.id);
   }
+});
+
+const handleContractMessage = registerContractFlow(bot, {
+  sessions,
+  ack,
+  saveContract: saveContractSubmission,
+  notify: async (answers, result) => {
+    if (!CHANNEL_OR_GROUP_TOKEN) return;
+    const docs = ["passportFront", "passportBack", "diploma", "diplomaAppendix", "certificate"].filter((key) => answers[key]).length;
+    await bot.telegram.sendMessage(
+      CHANNEL_OR_GROUP_TOKEN,
+      `📄 <b>Shartnoma uchun ma'lumot keldi</b>\n\n` +
+        `👤 ${clipText(answers.fullName, 80)}\n` +
+        `📞 ${normalizePhone(answers.phone)}\n` +
+        `📎 Hujjatlar: ${docs} ta\n` +
+        `${result?.created ? "🆕 Avval ariza topshirmagan — panelda yangi ariza ochildi" : "🗂 Paneldagi arizasiga qo'shildi"}`,
+      { parse_mode: "HTML" },
+    );
+  },
 });
 
 bot.action("firstTime", async (ctx) => {
@@ -356,6 +380,10 @@ bot.on("message", async (ctx) => {
 
   if (!session) {
     return ctx.reply("Iltimos, /start buyrug'ini bosing.");
+  }
+
+  if (session.kind === "contract") {
+    return handleContractMessage(ctx, session);
   }
 
   const currentQuestion = session.questions[session.step];
