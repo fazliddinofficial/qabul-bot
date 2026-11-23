@@ -1,5 +1,6 @@
 // ID karta / pasport rasmidan ma'lumotlarni o'qish (serverning o'zida, tashqi xizmatsiz).
 // Faqat tekshiruvdan o'tgan qiymatlar qaytariladi — shubhalisi o'quvchidan so'raladi.
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
@@ -9,9 +10,13 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 let workerPromise = null;
 let queue = Promise.resolve();
 
+const CACHE_DIR = path.join(ROOT, ".ocr-cache");
+
 function getWorker() {
   if (!workerPromise) {
-    workerPromise = createWorker("eng", 1, { cachePath: path.join(ROOT, ".ocr-cache") }).catch((error) => {
+    // tesseract.js til faylini shu papkaga saqlaydi, lekin papkani o'zi yaratmaydi
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+    workerPromise = createWorker("eng", 1, { cachePath: CACHE_DIR }).catch((error) => {
       workerPromise = null;
       throw error;
     });
