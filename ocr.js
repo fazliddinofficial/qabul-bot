@@ -51,12 +51,31 @@ async function recognizeText(img) {
   return letterCount(boosted) > letterCount(plain) ? boosted : plain;
 }
 
-async function recognize(buffer, { mrzOnly = false, width = 1400, threshold = 0, boost = true } = {}) {
+// Hujjatning yuqori qismi (MRZ siz) — orqa tomondagi naqshli fon matnni buzadi, shuning uchun
+// bir necha xil ishlov bilan o'qib, natijalarni birlashtiramiz (yorliq va qiymatlar shu matndan qidiriladi)
+async function recognizeTopVariants(img, docType) {
+  const meta = await sharp(img).metadata();
+  // ID karta orqasida MRZ pastki ~38%, pasport sahifasida ~22%
+  const share = docType === "passport" ? 0.78 : 0.62;
+  const topPart = () => sharp(img).extract({ left: 0, top: 0, width: meta.width, height: Math.round(meta.height * share) });
+  const variants = [
+    { make: () => topPart(), psm: "3" },
+    { make: () => topPart().threshold(100), psm: "11" },
+    { make: () => topPart().threshold(120), psm: "3" },
+  ];
+  const texts = [];
+  for (const variant of variants) {
+    texts.push(await recognize(await variant.make().png().toBuffer(), { psm: variant.psm }));
+  }
+  return texts.join("\n");
+}
+
+async function recognize(buffer, { mrzOnly = false, width = 1400, threshold = 0, boost = true, psm = "3" } = {}) {
   const worker = await getWorker();
   await worker.setParameters(
     mrzOnly
       ? { tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<", tessedit_pageseg_mode: "6" }
-      : { tessedit_char_whitelist: "", tessedit_pageseg_mode: "3" },
+      : { tessedit_char_whitelist: "", tessedit_pageseg_mode: psm },
   );
   let image = buffer;
   if (mrzOnly) {
@@ -195,7 +214,7 @@ function labelValue(rawLines, labelRe) {
 // Otasining ismi oxiri yopiq ro'yxat: OCR xatolarini to'g'rilaymiz (QIZL, QIZZI → qizi; OGLI, 0G'LI → o'g'li)
 function suffixFix(word) {
   if (/^q[il1]?z+[il1]{1,2}$/i.test(word)) return "qizi";
-  if (/^[ou0]?'?g'?l[il1]$/i.test(word)) return "o'g'li";
+  if (/^[ou0]?'?g'?l[il1y]$/i.test(word)) return "o'g'li";
   return "";
 }
 
@@ -217,14 +236,22 @@ function datesIn(text) {
 }
 const dateKey = (d) => d.split(".").reverse().join("");
 
+// "IIV 8401": OCR "IV 8401", "WV 8401", "nv 8401", "I1V 8401" deb o'qishi mumkin — hammasi IIV
 function issuerIn(text) {
-  const m = String(text || "").toUpperCase().match(/\b[I1L]?[I1L]\s?([VB])\s*[-:№]?\s*(\d{3,6})\b/);
+  const m = String(text || "").toUpperCase().match(/(?:^|[^A-Z0-9])[IWNL1|!]{0,2}\s?([VB])\s*[-:№.]?\s*(\d{4,6})\b/);
   return m ? `II${m[1]} ${m[2]}` : "";
+}
+
+// Butun matndan qidirishda qattiqroq: V oldida kamida bitta I-ga o'xshash harf bo'lsin, faqat IIV
+function issuerInStrict(text) {
+  const m = String(text || "").toUpperCase().match(/(?:^|[^A-Z0-9])[IWNL1|!]{1,2}\s?V\s*[-:№.]?\s*(\d{4,6})\b/);
+  return m ? `IIV ${m[1]}` : "";
 }
 
 const DATE_RE_G = /\b(0[1-9]|[12]\d|3[01])[.\/,-](0[1-9]|1[0-2])[.\/,-]((?:19|20)\d{2})\b/;
 const ISSUE_LABEL = /(berilgan\s*sana\w*|date\s*of\s*issue|issued?\s*on|date\s*of\s*iss)/i;
-const AUTHORITY_LABEL = /(kim\s*tomonidan(\s*berilgan)?|authority|issuing\s*authority)/i;
+// ID karta orqasida "Berilgan joyi / Place of issue", pasportda "Kim tomonidan berilgan / Authority"
+const AUTHORITY_LABEL = /(kim\s*tomonidan(\s*berilgan)?|authority|berilgan\s*j\s*o\s*y\w*|place\s*o[fi]\s*iss?ue)/i;
 const LABEL_NOISE = /(BERILGAN|SANASI|DATE|ISSUE|KIM|TOMONIDAN|AUTHORITY|AMAL|QILISH|MUDDATI|EXPIRY|JSHSHIR|PINFL|TUG'?ILGAN|JOYI|PLACE|BIRTH|SHAXSIY|RAQAM|PERSONAL|NO\.?)\b/g;
 
 // Yorliq yonidagi (yoki ostidagi) qiymat: "Berilgan sanasi / Date of issue" → 01.09.2022
@@ -295,7 +322,8 @@ export async function readDocument({ docType, front, back }) {
     const main = docType === "passport" ? front : back;
     if (main) {
       const img = await prepare(main);
-      const full = await recognizeText(img);
+      // Matn (yorliqlar, JSHSHIR, bergan organ) — yuqori qismdan bir necha xil ishlov bilan
+      const full = await recognizeTopVariants(img, docType);
       texts.push(full);
       // MRZ ni bir necha sozlamada o'qiymiz; har bir maydon tekshiruv raqami bilan tasdiqlanadi, natijalar birlashtiriladi
       const zones = [
@@ -303,7 +331,6 @@ export async function readDocument({ docType, front, back }) {
         await recognize(img, { mrzOnly: true, width: 1400 }),
         await recognize(img, { mrzOnly: true, width: 1000, threshold: 140 }),
         await recognize(img, { mrzOnly: true, width: 1800 }),
-        full,
       ];
       const parse = docType === "passport" ? parseTd3 : parseTd1;
       for (const zone of zones) {
@@ -324,11 +351,20 @@ export async function readDocument({ docType, front, back }) {
     // Ism-familiya: old tomondagi yozuv (apostrof bilan), MRZ bilan solishtiriladi
     const surFront = labelValue(frontLines, /(familiya\w*|surname)/i);
     const givenFront = labelValue(frontLines, /(ismi|given\s*name)/i);
-    let patronymic = labelValue(frontLines, /(otasining\s*ismi|patronymic)/i);
+    let patronymic = labelValue(frontLines, /(otasining\b|patronym)/i);
     if (!patronymic) patronymic = frontLines.map((l) => l.toUpperCase()).find((l) => /\b(QIZI|O['‘’ʻ`]?G['‘’ʻ`]?LI|UGLI)\b/.test(l)) || "";
     // Old tomondagi qalin yozuv aniqroq (apostrof ham bor); MRZ — faqat old tomonda topilmasa
-    const surname = surFront || mrz.surname || "";
-    const given = givenFront || mrz.given || "";
+    // Old tomonda harflar MRZ bilan bir xil bo'lsa — ortiqcha bo'shliqlarni olib tashlaymiz (TURSU NBAYEV → TURSUNBAYEV),
+    // apostroflar esa old tomondan qoladi (MRZ da apostrof bo'lmaydi)
+    const reconcile = (front, fromMrz) => {
+      if (!front) return fromMrz || "";
+      if (!fromMrz) return front;
+      const bare = (s) => s.toUpperCase().replace(/[^A-Z]/g, "");
+      if (bare(front) === bare(fromMrz) && !/\s/.test(fromMrz.trim())) return front.replace(/\s+/g, "");
+      return front;
+    };
+    const surname = reconcile(surFront, mrz.surname);
+    const given = reconcile(givenFront, mrz.given);
     if (surname) out.surname = titleCase(surname);
     if (given) out.given = titleCase(given);
     // Yorliq yonidan topilgan otasining ismi har qanday ko'rinishda bo'lishi mumkin: BOBUR QIZI, ALIYEVICH
@@ -365,7 +401,7 @@ export async function readDocument({ docType, front, back }) {
       issued = dates.filter(plausibleIssue).pop() || "";
     }
     if (issued) out.passportIssued = issued;
-    const issuer = authorityByLabel(allLines) || issuerIn(allText);
+    const issuer = authorityByLabel(allLines) || issuerInStrict(allText);
     if (issuer) out.passportIssuer = issuer;
     return out;
   });
