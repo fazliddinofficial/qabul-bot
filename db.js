@@ -132,6 +132,43 @@ const activitySchema = new mongoose.Schema(
   { collection: "activity_log", timestamps: { createdAt: true, updatedAt: false } },
 );
 
+// O'quvchilar shartnomasi — bot orqali o'quvchi yuborgan hujjatlar va pasport ma'lumotlari
+const studentFile = { data: Buffer, contentType: { type: String, default: "" } };
+const studentContractSchema = new mongoose.Schema(
+  {
+    ownerToken: { type: String, required: true, index: true },
+    telegramUserId: { type: String, default: "" },
+    username: { type: String, default: "" },
+    fullName: { type: String, default: "" },
+    birthday: { type: String, default: "" },
+    course: { type: String, default: "" },
+    passportSeries: { type: String, default: "" },
+    passportIssued: { type: String, default: "" },
+    passportIssuer: { type: String, default: "" },
+    jshshir: { type: String, default: "" },
+    address: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    note: { type: String, default: "" },
+    seenAt: { type: Date, default: null },
+    passportFront: studentFile,
+    passportBack: studentFile,
+    birthCertificate: studentFile,
+    hasPassportFront: { type: Boolean, default: false },
+    hasPassportBack: { type: Boolean, default: false },
+    hasBirthCertificate: { type: Boolean, default: false },
+    passportFrontType: { type: String, default: "" },
+    passportBackType: { type: String, default: "" },
+    birthCertificateType: { type: String, default: "" },
+    passportFrontName: { type: String, default: "" },
+    passportBackName: { type: String, default: "" },
+    birthCertificateName: { type: String, default: "" },
+  },
+  { collection: "student_contracts", timestamps: true },
+);
+studentContractSchema.index({ ownerToken: 1, createdAt: -1 });
+const StudentContract =
+  mongoose.models.StudentContract || mongoose.model("StudentContract", studentContractSchema);
+
 const User = mongoose.models.ApplicantUser || mongoose.model("ApplicantUser", userSchema);
 const Staff = mongoose.models.StaffUser || mongoose.model("StaffUser", staffSchema);
 const Activity = mongoose.models.ActivityLog || mongoose.model("ActivityLog", activitySchema);
@@ -1090,6 +1127,103 @@ export async function saveContractSubmission({ telegramUserId, username, answers
     ...set,
   });
   return { id: String(doc._id), created: true };
+}
+
+export const STUDENT_DOC_SLOTS = {
+  passportFront: { flag: "hasPassportFront", typeField: "passportFrontType", nameField: "passportFrontName", label: "Pasport oldi" },
+  passportBack: { flag: "hasPassportBack", typeField: "passportBackType", nameField: "passportBackName", label: "Pasport orqasi" },
+  birthCertificate: { flag: "hasBirthCertificate", typeField: "birthCertificateType", nameField: "birthCertificateName", label: "Tug'ilganlik guvohnomasi" },
+};
+const studentWithoutFiles = "-passportFront -passportBack -birthCertificate";
+const STUDENT_TEXT_FIELDS = {
+  fullName: 200,
+  birthday: 20,
+  course: 80,
+  passportSeries: 20,
+  passportIssued: 20,
+  passportIssuer: 120,
+  jshshir: 14,
+  address: 300,
+  phone: 40,
+  note: 2000,
+};
+
+function studentText(input) {
+  const out = {};
+  for (const [key, max] of Object.entries(STUDENT_TEXT_FIELDS)) {
+    if (input[key] === undefined) continue;
+    let value = String(input[key] ?? "").replace(key === "note" ? /[^\S\n]+/g : /\s+/g, " ").trim();
+    if (key === "jshshir") value = value.replace(/\D/g, "");
+    if (key === "passportSeries") value = value.replace(/\s/g, "").toUpperCase();
+    out[key] = value.slice(0, max);
+  }
+  return out;
+}
+
+export async function saveStudentContract({ telegramUserId, username, answers }) {
+  const doc = {
+    ownerToken: ownerToken(),
+    telegramUserId: String(telegramUserId || ""),
+    username: username || "",
+    ...studentText(answers),
+  };
+  for (const [slot, meta] of Object.entries(STUDENT_DOC_SLOTS)) {
+    const file = answers[slot];
+    if (!file?.fileId) continue;
+    const downloaded = await downloadTelegramFileWithRetry(file.fileId);
+    const contentType = file.kind === "pdf" ? "application/pdf" : downloaded.contentType;
+    const ext = contentType === "application/pdf" ? "pdf" : contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+    doc[slot] = { data: downloaded.data, contentType };
+    doc[meta.flag] = true;
+    doc[meta.typeField] = contentType;
+    doc[meta.nameField] = String(file.fileName || `${meta.label}.${ext}`).slice(0, 120);
+  }
+  const created = await StudentContract.create(doc);
+  return { id: String(created._id), created: true };
+}
+
+export async function listStudentContracts() {
+  return StudentContract.find({ ownerToken: ownerToken() })
+    .select(studentWithoutFiles)
+    .sort({ createdAt: -1 })
+    .lean();
+}
+
+export async function getStudentContract(id, { markSeen = false } = {}) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  const filter = { _id: id, ownerToken: ownerToken() };
+  if (markSeen) {
+    await StudentContract.updateOne({ ...filter, seenAt: null }, { $set: { seenAt: new Date() } });
+  }
+  return StudentContract.findOne(filter).select(studentWithoutFiles).lean();
+}
+
+export async function updateStudentContract(id, input) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return StudentContract.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken() },
+    { $set: studentText(input || {}) },
+    { new: true },
+  )
+    .select(studentWithoutFiles)
+    .lean();
+}
+
+export async function deleteStudentContract(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return StudentContract.findOneAndDelete({ _id: id, ownerToken: ownerToken() }).select("fullName").lean();
+}
+
+export async function getStudentContractFile(id, slot) {
+  const meta = STUDENT_DOC_SLOTS[slot];
+  if (!meta || !mongoose.isValidObjectId(id)) return null;
+  const doc = await StudentContract.findOne({ _id: id, ownerToken: ownerToken() })
+    .select(`${slot} ${meta.flag}`)
+    .lean();
+  if (!doc?.[meta.flag] || !doc[slot]?.data) return null;
+  const data = fileBuffer(doc[slot].data);
+  if (!data) return null;
+  return { data, contentType: doc[slot].contentType || "application/octet-stream" };
 }
 
 const importStatuses = {

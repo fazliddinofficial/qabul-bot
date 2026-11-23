@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=25" />
+    <link rel="stylesheet" href="/styles.css?v=26" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -71,6 +71,7 @@
             <div id="search-results" class="search-results hidden" role="listbox"></div>
           </label>
           <div class="top-actions">
+            <button id="open-students" type="button" class="ghost archive-btn students-btn" title="O‘quvchilar shartnomasi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>O‘quvchilar<span id="stu-new-badge" class="stu-new-badge hidden">0</span></button>
             <button id="open-archive" type="button" class="ghost archive-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 4h18v3H3zM10 11h4"/></svg>Arxiv</button>
             <button type="button" class="more-btn theme-toggle" aria-label="Tungi / kunduzgi rejim" title="Tungi / kunduzgi rejim">
               <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
@@ -332,6 +333,30 @@
       </div>
     </dialog>
 
+    <dialog id="students-dialog">
+      <div class="arc-top">
+        <button id="close-students" type="button" class="arc-back">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>
+          Arizalarga qaytish
+        </button>
+      </div>
+      <div class="arc-wrap">
+        <header class="arc-head">
+          <span class="dialog-ico stu-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg></span>
+          <div class="arc-title">
+            <h2>O‘quvchilar shartnomasi <span class="badge" id="stu-count">0 ta</span></h2>
+            <p class="muted">Bot orqali «🎓 O‘quvchilar shartnoma qilish» bo‘limidan keladi</p>
+          </div>
+          <label class="search arc-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input id="stu-search" type="search" placeholder="Qidirish: ism, telefon, kurs, JSHSHIR" />
+          </label>
+        </header>
+        <section id="stu-list" class="arc-list"></section>
+        <section id="stu-detail" class="stu-detail hidden"></section>
+      </div>
+    </dialog>
+
     <dialog id="detail">
       <div class="detail-head">
         <button id="back-detail" type="button" class="icon-btn" aria-label="Orqaga">
@@ -351,6 +376,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js?v=25"></script>
+    <script type="module" src="/app.js?v=26"></script>
   </body>
 </html>

@@ -34,6 +34,12 @@ import {
   setBrandLogo,
   clearBrandLogo,
   getBrandLogo,
+  STUDENT_DOC_SLOTS,
+  listStudentContracts,
+  getStudentContract,
+  updateStudentContract,
+  deleteStudentContract,
+  getStudentContractFile,
 } from "../db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -505,6 +511,47 @@ export async function startWeb() {
     const photo = await getApplicationPhoto(req.params.id);
     if (!photo) return res.status(404).end();
     sendStoredFile(res, photo, req.query.download === "1" ? "Nomzod rasmi" : "");
+  });
+
+  // O'quvchilar shartnomasi (bot orqali keladi)
+  app.get("/api/student-contracts", requireAuth, async (req, res) => {
+    res.json({ items: await listStudentContracts() });
+  });
+
+  app.get("/api/student-contracts/:id", requireAuth, async (req, res) => {
+    const item = await getStudentContract(req.params.id, { markSeen: true });
+    if (!item) return res.status(404).json({ error: "Topilmadi" });
+    res.json({ item });
+  });
+
+  app.patch("/api/student-contracts/:id", requireAuth, requireEdit, async (req, res) => {
+    const item = await updateStudentContract(req.params.id, req.body || {});
+    if (!item) return res.status(404).json({ error: "Topilmadi" });
+    await recordActivity({
+      actor: actorOf(req),
+      action: "O‘quvchi shartnomasini o‘zgartirdi",
+      detail: item.fullName || "O‘quvchi",
+    });
+    res.json({ item });
+  });
+
+  app.delete("/api/student-contracts/:id", requireAuth, requireDelete, async (req, res) => {
+    const item = await deleteStudentContract(req.params.id);
+    if (!item) return res.status(404).json({ error: "Topilmadi" });
+    await recordActivity({
+      actor: actorOf(req),
+      action: "O‘quvchi shartnomasini o‘chirdi",
+      detail: item.fullName || "O‘quvchi",
+    });
+    res.json({ ok: true });
+  });
+
+  app.get("/api/student-contracts/:id/docs/:slot", requireAuth, async (req, res) => {
+    const meta = STUDENT_DOC_SLOTS[req.params.slot];
+    if (!meta) return res.status(404).end();
+    const file = await getStudentContractFile(req.params.id, req.params.slot);
+    if (!file) return res.status(404).end();
+    sendStoredFile(res, file, req.query.download === "1" ? meta.label : "");
   });
 
   app.use(express.static(path.join(__dirname, "public")));

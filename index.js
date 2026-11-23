@@ -9,7 +9,7 @@ import {
   WORK_SHIFTS,
   isOwnContact,
 } from "./questions.js";
-import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission } from "./db.js";
+import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission, saveStudentContract } from "./db.js";
 import { registerContractFlow } from "./contract.js";
 import { startWeb } from "./web/server.js";
 import { CronosExpression, CronosTask } from "cronosjs";
@@ -266,19 +266,33 @@ bot.start(async (ctx) => {
 const handleContractMessage = registerContractFlow(bot, {
   sessions,
   ack,
-  saveContract: saveContractSubmission,
-  notify: async (answers, result) => {
-    if (!CHANNEL_OR_GROUP_TOKEN) return;
-    const docs = ["passportFront", "passportBack", "diploma", "diplomaAppendix", "certificate"].filter((key) => answers[key]).length;
-    await bot.telegram.sendMessage(
-      CHANNEL_OR_GROUP_TOKEN,
-      `📄 <b>Shartnoma uchun ma'lumot keldi</b>\n\n` +
-        `👤 ${clipText(answers.fullName, 80)}\n` +
-        `📞 ${normalizePhone(answers.phone)}\n` +
-        `📎 Hujjatlar: ${docs} ta\n` +
-        `${result?.created ? "🆕 Avval ariza topshirmagan — panelda yangi ariza ochildi" : "🗂 Paneldagi arizasiga qo'shildi"}`,
-      { parse_mode: "HTML" },
-    );
+  saveContract: { staff: saveContractSubmission, student: saveStudentContract },
+  notify: {
+    staff: async (answers, result) => {
+      if (!CHANNEL_OR_GROUP_TOKEN) return;
+      const docs = ["passportFront", "passportBack", "diploma", "diplomaAppendix", "certificate"].filter((key) => answers[key]).length;
+      await bot.telegram.sendMessage(
+        CHANNEL_OR_GROUP_TOKEN,
+        `📄 <b>Xodim shartnomasi uchun ma'lumot keldi</b>\n\n` +
+          `👤 ${clipText(answers.fullName, 80)}\n` +
+          `📞 ${normalizePhone(answers.phone)}\n` +
+          `📎 Hujjatlar: ${docs} ta\n` +
+          `${result?.created ? "🆕 Avval ariza topshirmagan — panelda yangi ariza ochildi" : "🗂 Paneldagi arizasiga qo'shildi"}`,
+        { parse_mode: "HTML" },
+      );
+    },
+    student: async (answers) => {
+      if (!CHANNEL_OR_GROUP_TOKEN) return;
+      await bot.telegram.sendMessage(
+        CHANNEL_OR_GROUP_TOKEN,
+        `🎓 <b>O'quvchi shartnomasi uchun ma'lumot keldi</b>\n\n` +
+          `👤 ${clipText(answers.fullName, 80)}\n` +
+          `📚 Kurs: ${clipText(answers.course, 80)}\n` +
+          `📞 ${normalizePhone(answers.phone)}\n` +
+          `🗂 Panel → «O'quvchilar» bo'limi`,
+        { parse_mode: "HTML" },
+      );
+    },
   },
 });
 

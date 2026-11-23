@@ -1172,6 +1172,7 @@ async function loadApplications() {
   knownPositions = data.positions || [];
   overdueMark = overdueIds();
   render();
+  refreshStudentBadge();
 }
 
 // Suhbat vaqti o‘tgan zahoti kartochka sahifa yangilanmasa ham "Kelmadi" rangiga o‘tsin
@@ -2185,6 +2186,236 @@ document.querySelector("#open-archive").addEventListener("click", async () => {
   await loadArchive();
 });
 document.querySelector("#close-archive").addEventListener("click", () => archiveDialog.close());
+
+// ============ O‘quvchilar shartnomasi ============
+const studentsDialog = document.querySelector("#students-dialog");
+const studentList = document.querySelector("#stu-list");
+const studentDetail = document.querySelector("#stu-detail");
+const studentSearch = document.querySelector("#stu-search");
+let studentItems = [];
+
+const STUDENT_FIELDS = [
+  ["fullName", "F.I.Sh", "Familiya Ism Otasining ismi", true],
+  ["course", "Kurs", "Ingliz tili"],
+  ["birthday", "Tug‘ilgan sana", "KK.OO.YYYY"],
+  ["phone", "Telefon", "+998 90 123 45 67"],
+  ["passportSeries", "Pasport seriyasi", "AD1234567"],
+  ["passportIssued", "Pasport berilgan sana", "KK.OO.YYYY"],
+  ["passportIssuer", "Pasport bergan organ", "IIV 8213"],
+  ["jshshir", "JSHSHIR", "14 ta raqam"],
+  ["address", "Manzil", "Doimiy yashash manzili", "span2"],
+];
+const STUDENT_DOCS = [
+  ["passportFront", "Pasport oldi", "#0ea5e9"],
+  ["passportBack", "Pasport orqasi", "#14b8a6"],
+  ["birthCertificate", "Tug‘ilganlik guvohnomasi", "#f59e0b"],
+];
+const studentFlag = (item, slot) => item[`has${slot.charAt(0).toUpperCase()}${slot.slice(1)}`];
+
+function setStudentBadge(items) {
+  const badge = document.querySelector("#stu-new-badge");
+  const fresh = items.filter((item) => !item.seenAt).length;
+  badge.textContent = String(fresh);
+  badge.classList.toggle("hidden", !fresh);
+}
+
+async function refreshStudentBadge() {
+  try {
+    const res = await fetch("/api/student-contracts");
+    if (!res.ok) return;
+    const data = await res.json();
+    setStudentBadge(data.items || []);
+  } catch { /* nishon ko‘rinmasa ham panel ishlayveradi */ }
+}
+
+async function loadStudents() {
+  studentList.innerHTML = `<p class="muted arc-loading">Yuklanmoqda...</p>`;
+  const res = await fetch("/api/student-contracts");
+  if (res.status === 401) return showLogin();
+  const data = await res.json().catch(() => ({}));
+  studentItems = data.items || [];
+  setStudentBadge(studentItems);
+  renderStudents();
+}
+
+function studentThumb(item, cls) {
+  const initials = String(item.fullName || "?").trim().split(/\s+/).slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join("");
+  return item.hasPassportFront && !String(item.passportFrontType || "").includes("pdf")
+    ? `<img class="${cls}" src="/api/student-contracts/${esc(item._id)}/docs/passportFront" alt="" loading="lazy" />`
+    : `<span class="${cls} arc-photo-empty">${esc(initials || "?")}</span>`;
+}
+
+function renderStudents() {
+  document.querySelector("#stu-count").textContent = `${studentItems.length} ta`;
+  const query = studentSearch.value.trim().toLowerCase();
+  const items = query
+    ? studentItems.filter((item) =>
+        [item.fullName, item.phone, item.course, item.jshshir, item.username, item.passportSeries]
+          .some((value) => String(value || "").toLowerCase().includes(query)))
+    : studentItems;
+  if (!items.length) {
+    studentList.innerHTML = `
+      <div class="empty arc-empty">
+        <span class="arc-empty-ico stu-empty-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg></span>
+        <strong>${query ? "Hech narsa topilmadi" : "Hali o‘quvchi shartnomasi yo‘q"}</strong>
+        <p>${query ? "Boshqa so‘z bilan qidirib ko‘ring." : "O‘quvchi botda /start → «📄 Shartnoma qilish» → «🎓 O‘quvchilar shartnoma qilish» ni tanlab ma’lumot yuborsa, shu yerda paydo bo‘ladi."}</p>
+      </div>`;
+    return;
+  }
+  let lastDay = "";
+  studentList.innerHTML = items
+    .map((item) => {
+      const day = historyDay(item.createdAt);
+      const head = day !== lastDay ? `<h3 class="history-day arc-day">${esc(day)}</h3>` : "";
+      lastDay = day;
+      const docs = STUDENT_DOCS.filter(([slot]) => studentFlag(item, slot)).length;
+      return `${head}
+        <article class="arc-card stu-card${item.seenAt ? "" : " is-new"}" data-stu-open="${esc(item._id)}" tabindex="0">
+          ${studentThumb(item, "arc-photo")}
+          <div class="arc-main">
+            <div class="arc-name-row">
+              <h3>${esc(item.fullName || "O‘quvchi")}</h3>
+              ${item.seenAt ? "" : `<span class="new-pill">Yangi</span>`}
+            </div>
+            ${item.course ? `<span class="ac-role" style="--h:${positionHue(item.course)}">${esc(item.course)}</span>` : ""}
+            <div class="arc-meta">
+              <span><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.phone}</svg>${esc(formatPhone(item.phone) || "—")}</span>
+              <span><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.birthday}</svg>${esc(item.birthday || "—")}</span>
+              <span><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg>${docs} ta hujjat</span>
+              <span class="arc-when"><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.clock}</svg>${esc(formatDate(item.createdAt) || "—")}</span>
+            </div>
+          </div>
+        </article>`;
+    })
+    .join("");
+}
+
+function showStudentList() {
+  studentDetail.classList.add("hidden");
+  studentDetail.innerHTML = "";
+  studentList.classList.remove("hidden");
+  studentsDialog.querySelector(".arc-head").classList.remove("hidden");
+  renderStudents();
+}
+
+async function openStudent(id) {
+  const res = await fetch(`/api/student-contracts/${encodeURIComponent(id)}`);
+  if (res.status === 401) return showLogin();
+  if (!res.ok) return alert("O‘quvchi topilmadi");
+  const { item } = await res.json();
+  const index = studentItems.findIndex((entry) => entry._id === id);
+  if (index >= 0) studentItems[index] = item;
+  setStudentBadge(studentItems);
+  renderStudentDetail(item);
+}
+
+function renderStudentDetail(item) {
+  const editable = canChange();
+  const docs = STUDENT_DOCS.map(([slot, label, color]) => {
+    const url = `/api/student-contracts/${esc(item._id)}/docs/${slot}`;
+    const has = studentFlag(item, slot);
+    const pdf = String(item[`${slot}Type`] || "").includes("pdf");
+    const preview = has
+      ? `<a class="stu-doc-view" href="${url}" target="_blank" rel="noopener" title="Kattaroq ochish">${
+          pdf ? `<iframe src="${url}" title="${esc(label)}"></iframe><span class="stu-doc-pdf">PDF</span>` : `<img src="${url}" alt="${esc(label)}" loading="lazy" />`
+        }</a>`
+      : `<div class="doc-empty">Yuborilmagan</div>`;
+    return `
+      <div class="stu-doc" style="--fc:${color}">
+        <span class="stu-doc-label"><i class="pf-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.idcard}</svg></i>${label}</span>
+        ${preview}
+        ${has ? `<a class="stu-doc-dl" href="${url}?download=1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 19h14"/></svg>Yuklab olish</a>` : ""}
+      </div>`;
+  }).join("");
+  const fields = STUDENT_FIELDS.map(([key, label, placeholder, wide]) => `
+    <label class="stu-field${wide === "span2" ? " span2" : wide ? " wide" : ""}">
+      <span>${label}</span>
+      <input name="${key}" value="${esc(item[key] || "")}" placeholder="${esc(placeholder)}" ${editable ? "" : "readonly"} />
+    </label>`).join("");
+  studentsDialog.querySelector(".arc-head").classList.add("hidden");
+  studentList.classList.add("hidden");
+  studentDetail.classList.remove("hidden");
+  studentDetail.innerHTML = `
+    <div class="stu-detail-head">
+      <button type="button" class="arc-back" id="stu-back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>Ro‘yxatga qaytish</button>
+      <div class="stu-detail-title">
+        ${studentThumb(item, "stu-avatar")}
+        <div>
+          <p class="eyebrow">O‘quvchi shartnomasi</p>
+          <h2>${esc(item.fullName || "O‘quvchi")}</h2>
+          <p class="muted">Yuborgan: ${esc(formatDate(item.createdAt) || "—")}${item.username ? ` · @${esc(item.username)}` : ""}</p>
+        </div>
+      </div>
+    </div>
+    <div class="stu-docs">${docs}</div>
+    <form class="stu-form" id="stu-form">
+      ${fields}
+      <label class="stu-field wide">
+        <span>Izoh</span>
+        <textarea name="note" rows="3" placeholder="Masalan: shartnoma imzolandi, guruh, to‘lov..." ${editable ? "" : "readonly"}>${esc(item.note || "")}</textarea>
+      </label>
+      <div class="stu-actions">
+        ${canRemove() ? `<button type="button" class="arc-btn purge" id="stu-delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>O‘chirish</button>` : ""}
+        <span class="stu-saved" id="stu-saved"></span>
+        ${editable ? `<button type="submit" class="stu-save">Saqlash</button>` : ""}
+      </div>
+    </form>`;
+  studentDetail.querySelector("#stu-back").addEventListener("click", showStudentList);
+  studentDetail.querySelector("#stu-form").addEventListener("input", () => {
+    studentDetail.querySelector("#stu-saved").textContent = "";
+  });
+  studentDetail.querySelector("#stu-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!editable) return;
+    const body = Object.fromEntries(new FormData(event.target));
+    const res = await fetch(`/api/student-contracts/${encodeURIComponent(item._id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Saqlanmadi");
+      return;
+    }
+    const data = await res.json();
+    const index = studentItems.findIndex((entry) => entry._id === item._id);
+    if (index >= 0) studentItems[index] = data.item;
+    studentDetail.querySelector("#stu-saved").textContent = "✓ Saqlandi";
+    studentDetail.querySelector(".stu-detail-title h2").textContent = data.item.fullName || "O‘quvchi";
+  });
+  studentDetail.querySelector("#stu-delete")?.addEventListener("click", async () => {
+    if (!confirm(`${item.fullName || "Bu o‘quvchi"} shartnomasi butunlay o‘chirilsinmi? Qaytarib bo‘lmaydi.`)) return;
+    const res = await fetch(`/api/student-contracts/${encodeURIComponent(item._id)}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "O‘chirilmadi");
+      return;
+    }
+    studentItems = studentItems.filter((entry) => entry._id !== item._id);
+    setStudentBadge(studentItems);
+    showStudentList();
+  });
+}
+
+studentSearch.addEventListener("input", renderStudents);
+studentList.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-stu-open]");
+  if (card) openStudent(card.dataset.stuOpen);
+});
+studentList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const card = event.target.closest("[data-stu-open]");
+  if (card) openStudent(card.dataset.stuOpen);
+});
+document.querySelector("#open-students").addEventListener("click", async () => {
+  if (detail.open) detail.close();
+  studentSearch.value = "";
+  showStudentList();
+  studentsDialog.showModal();
+  await loadStudents();
+});
+document.querySelector("#close-students").addEventListener("click", () => studentsDialog.close());
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();

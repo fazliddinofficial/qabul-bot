@@ -3086,3 +3086,159 @@ button.acard {
   color: #fff;
 }
 .edit-card[data-edit="agreedSalary"] .card-save:hover { background: #059669; }
+
+/* ============ O‘quvchilar shartnomasi ============ */
+.students-btn { gap: 7px; position: relative; }
+.students-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.stu-new-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--pink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.stu-new-badge.hidden { display: none; }
+
+dialog#students-dialog {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background:
+    radial-gradient(900px 320px at 50% -120px, color-mix(in srgb, #6366f1 18%, transparent), transparent 70%),
+    var(--bg);
+  color: var(--ink);
+  overflow: auto;
+}
+.stu-ico { --dc: #6366f1; width: 54px; height: 54px; border-radius: 16px; }
+.stu-ico svg { width: 26px; height: 26px; }
+.stu-empty-ico { color: #6366f1; }
+.stu-card { --c: #6366f1; grid-template-columns: auto minmax(0, 1fr); }
+.stu-card.is-new { border-color: color-mix(in srgb, var(--pink) 55%, var(--line)); }
+.stu-card .new-pill { margin: 0; }
+
+.stu-detail { display: grid; gap: 16px; }
+.stu-detail.hidden, #stu-list.hidden, #students-dialog .arc-head.hidden { display: none; }
+.stu-detail-head { display: grid; gap: 14px; justify-items: start; }
+.stu-detail-title { display: flex; align-items: center; gap: 14px; }
+.stu-detail-title h2 { margin: 2px 0; font-size: 24px; letter-spacing: -0.01em; }
+.stu-avatar {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 2px solid color-mix(in srgb, #6366f1 45%, var(--line));
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.stu-docs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stu-doc {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--fc) 10%, var(--surface)), var(--surface));
+  border: 1px dashed color-mix(in srgb, var(--fc) 45%, var(--line));
+}
+.stu-doc-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fc);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.stu-doc .pf-ico { width: 24px; height: 24px; border-radius: 7px; }
+.stu-doc-view {
+  position: relative;
+  display: block;
+  height: 190px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.stu-doc-view img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.stu-doc-view iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
+.stu-doc-pdf {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.stu-doc .doc-empty { height: 190px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-2); color: var(--faint); }
+.stu-doc-dl {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fc) 14%, transparent);
+  color: var(--fc);
+  font-size: 12.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.stu-doc-dl:hover { background: color-mix(in srgb, var(--fc) 22%, transparent); }
+.stu-doc-dl svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.stu-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.stu-field { display: grid; gap: 5px; min-width: 0; }
+.stu-field.wide { grid-column: span 3; }
+.stu-field.span2 { grid-column: span 2; }
+.stu-field span {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.stu-field input, .stu-field textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.stu-field textarea { resize: vertical; font-weight: 500; }
+.stu-field input[readonly], .stu-field textarea[readonly] { background: var(--surface-2); }
+.stu-actions { grid-column: span 3; display: flex; align-items: center; gap: 10px; }
+.stu-saved { margin-left: auto; color: var(--t-today); font-weight: 600; }
+.stu-save { padding: 10px 26px; }
+.stu-actions .arc-btn.purge { display: inline-flex; align-items: center; gap: 6px; }
+
+@media (max-width: 760px) {
+  .stu-docs, .stu-form { grid-template-columns: 1fr; }
+  .stu-field.wide, .stu-field.span2, .stu-actions { grid-column: span 1; }
+  .students-btn { padding: 0 11px; font-size: 0; gap: 0; }
+  .students-btn svg { width: 18px; height: 18px; }
+  .stu-new-badge { position: absolute; top: -4px; right: -4px; font-size: 10px; }
+}
