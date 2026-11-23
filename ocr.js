@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
 import { createWorker } from "tesseract.js";
+import { capitalizePlace } from "./contract.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 let workerPromise = null;
@@ -31,14 +32,26 @@ function serial(fn) {
   return run;
 }
 
+// Rasmni kattalashtirib, kulrang qilamiz. Kontrastni cho'zish (normalize) bir xil fonli rasmni buzib yuborishi
+// mumkin — shuning uchun u faqat zaxira variantda ishlatiladi.
 async function prepare(buffer) {
   const img = sharp(buffer, { failOn: "none" }).rotate();
   const meta = await img.metadata();
   const width = meta.width && meta.width < 1600 ? 1800 : Math.min(meta.width || 1800, 2400);
-  return img.resize({ width }).grayscale().normalize().sharpen().png().toBuffer();
+  return img.resize({ width }).grayscale().png().toBuffer();
 }
 
-async function recognize(buffer, { mrzOnly = false, width = 1400, threshold = 0 } = {}) {
+const letterCount = (text) => (String(text || "").match(/[A-Za-z]/g) || []).length;
+
+// To'liq matn: avval oddiy, juda kam harf chiqsa — kontrast cho'zilgan holda qayta
+async function recognizeText(img) {
+  const plain = await recognize(img);
+  if (letterCount(plain) >= 25) return plain;
+  const boosted = await recognize(await sharp(img).normalize().sharpen().png().toBuffer());
+  return letterCount(boosted) > letterCount(plain) ? boosted : plain;
+}
+
+async function recognize(buffer, { mrzOnly = false, width = 1400, threshold = 0, boost = true } = {}) {
   const worker = await getWorker();
   await worker.setParameters(
     mrzOnly
@@ -50,7 +63,8 @@ async function recognize(buffer, { mrzOnly = false, width = 1400, threshold = 0 
     // MRZ — pastki qism: kesib, kattalashtirib, oq-qora qilamiz (OCR-B shrifti aniqroq o'qiladi)
     const meta = await sharp(buffer).metadata();
     const top = Math.round(meta.height * 0.55);
-    let crop = sharp(buffer).extract({ left: 0, top, width: meta.width, height: meta.height - top }).resize({ width }).grayscale().normalize();
+    let crop = sharp(buffer).extract({ left: 0, top, width: meta.width, height: meta.height - top }).resize({ width }).grayscale();
+    if (boost) crop = crop.normalize();
     if (threshold) crop = crop.threshold(threshold);
     image = await crop.png().toBuffer();
   }
@@ -208,6 +222,55 @@ function issuerIn(text) {
   return m ? `II${m[1]} ${m[2]}` : "";
 }
 
+const DATE_RE_G = /\b(0[1-9]|[12]\d|3[01])[.\/,-](0[1-9]|1[0-2])[.\/,-]((?:19|20)\d{2})\b/;
+const ISSUE_LABEL = /(berilgan\s*sana\w*|date\s*of\s*issue|issued?\s*on|date\s*of\s*iss)/i;
+const AUTHORITY_LABEL = /(kim\s*tomonidan(\s*berilgan)?|authority|issuing\s*authority)/i;
+const LABEL_NOISE = /(BERILGAN|SANASI|DATE|ISSUE|KIM|TOMONIDAN|AUTHORITY|AMAL|QILISH|MUDDATI|EXPIRY|JSHSHIR|PINFL|TUG'?ILGAN|JOYI|PLACE|BIRTH|SHAXSIY|RAQAM|PERSONAL|NO\.?)\b/g;
+
+// Yorliq yonidagi (yoki ostidagi) qiymat: "Berilgan sanasi / Date of issue" → 01.09.2022
+function issuedByLabel(lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!ISSUE_LABEL.test(lines[i])) continue;
+    const after = lines[i].slice(lines[i].search(ISSUE_LABEL));
+    const same = after.match(DATE_RE_G);
+    if (same) return `${same[1]}.${same[2]}.${same[3]}`;
+    for (let j = i + 1; j < Math.min(lines.length, i + 3); j += 1) {
+      // Ikki ustunli joylashuv: "01.09.2022   IIV 8213" — yorliq qaysi ustunda bo'lsa, o'sha tomondagi sana
+      const dates = [...lines[j].matchAll(new RegExp(DATE_RE_G, "g"))];
+      if (dates.length) {
+        const pick = dates.length > 1 && lines[i].search(ISSUE_LABEL) > lines[i].length / 2 ? dates[dates.length - 1] : dates[0];
+        return `${pick[1]}.${pick[2]}.${pick[3]}`;
+      }
+    }
+  }
+  return "";
+}
+
+// "Kim tomonidan berilgan / Authority" → "IIV 26283" yoki "Jizzax shahar IIB"
+function authorityByLabel(lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const at = lines[i].search(AUTHORITY_LABEL);
+    if (at < 0) continue;
+    const candidates = [lines[i].slice(at).replace(AUTHORITY_LABEL, ""), ...lines.slice(i + 1, i + 3)];
+    for (const raw of candidates) {
+      const coded = issuerIn(raw);
+      if (coded) return coded;
+      const text = raw
+        .toUpperCase()
+        .replace(new RegExp(DATE_RE_G, "g"), " ")
+        .replace(LABEL_NOISE, " ")
+        .replace(/[^A-Z0-9'‘’ʻ`. -]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      // Joy nomi + IIB/IIV/IIBB kabi qisqartma bo'lsa — matnli organ nomi
+      if (text.length >= 5 && /\b(IIB|IIV|IIBB|IIIB|FHDYO|BO'LIMI|BOLIMI|VAZIRLIGI|BOSHQARMASI|IIO)\b/.test(text)) {
+        return capitalizePlace(text.toLowerCase());
+      }
+    }
+  }
+  return "";
+}
+
 function pinflIn(text) {
   const m = String(text || "").replace(/(\d)\s+(?=\d)/g, "$1").match(/\b[3-6]\d{13}\b/);
   return m ? m[0] : "";
@@ -232,12 +295,14 @@ export async function readDocument({ docType, front, back }) {
     const main = docType === "passport" ? front : back;
     if (main) {
       const img = await prepare(main);
-      const full = await recognize(img);
+      const full = await recognizeText(img);
       texts.push(full);
-      // MRZ ni ikki xil sozlamada o'qiymiz; har bir maydon tekshiruv raqami bilan tasdiqlanadi, natijalar birlashtiriladi
+      // MRZ ni bir necha sozlamada o'qiymiz; har bir maydon tekshiruv raqami bilan tasdiqlanadi, natijalar birlashtiriladi
       const zones = [
+        await recognize(img, { mrzOnly: true, width: 1400, boost: false }),
         await recognize(img, { mrzOnly: true, width: 1400 }),
         await recognize(img, { mrzOnly: true, width: 1000, threshold: 140 }),
+        await recognize(img, { mrzOnly: true, width: 1800 }),
         full,
       ];
       const parse = docType === "passport" ? parseTd3 : parseTd1;
@@ -249,7 +314,7 @@ export async function readDocument({ docType, front, back }) {
     }
     let frontText = docType === "passport" ? texts[0] || "" : "";
     if (docType !== "passport" && front) {
-      frontText = await recognize(await prepare(front));
+      frontText = await recognizeText(await prepare(front));
       texts.push(frontText);
     }
     const allText = texts.join("\n");
@@ -289,12 +354,18 @@ export async function readDocument({ docType, front, back }) {
       if (century) out.birthday = `${dd}.${mm}.${century + Number(yy)}`;
     }
 
-    // Berilgan sana: tug'ilgan sanadan keyingi, amal qilish muddatidan oldingi sana
-    const dates = [...new Set(datesIn(allText))].filter((d) => d !== out.birthday).sort((a, b) => dateKey(a).localeCompare(dateKey(b)));
+    // Berilgan sana va bergan organ: avval yorliq yonidan, topilmasa butun matndan
+    const allLines = allText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const issued = dates.filter((d) => dateKey(d) <= todayKey && (!out.birthday || dateKey(d) > dateKey(out.birthday))).pop();
+    const plausibleIssue = (d) => d && dateKey(d) <= todayKey && (!out.birthday || dateKey(d) > dateKey(out.birthday));
+    let issued = issuedByLabel(allLines);
+    if (!plausibleIssue(issued)) {
+      // tug'ilgan sanadan keyingi, bugungi kundan oldingi eng so'nggi sana (amal qilish muddati kelajakda bo'ladi)
+      const dates = [...new Set(datesIn(allText))].filter((d) => d !== out.birthday).sort((a, b) => dateKey(a).localeCompare(dateKey(b)));
+      issued = dates.filter(plausibleIssue).pop() || "";
+    }
     if (issued) out.passportIssued = issued;
-    const issuer = issuerIn(allText);
+    const issuer = authorityByLabel(allLines) || issuerIn(allText);
     if (issuer) out.passportIssuer = issuer;
     return out;
   });
