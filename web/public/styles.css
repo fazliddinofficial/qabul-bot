@@ -2830,3 +2830,152 @@ button.acard {
   .pass-name { font-size: 20px; }
   .staff-form { grid-template-columns: 1fr; }
 }
+
+/* ============ Sana + vaqt tanlash oynasi ============ */
+.edit-card[data-edit="interviewAt"].editing .edit-view { visibility: visible !important; }
+.edit-card[data-edit="interviewAt"].editing .edit-box { display: none !important; }
+
+.dtp {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: auto 148px;
+  grid-template-areas: "cal time" "foot foot";
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font);
+  overflow: hidden;
+  animation: dtp-in 0.12s ease-out;
+}
+@keyframes dtp-in { from { opacity: 0; transform: translateY(-4px); } }
+.dtp button {
+  background: none;
+  color: inherit;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: none;
+}
+.dtp button:hover { background: var(--surface-2); }
+
+.dtp-cal { grid-area: cal; padding: 14px 14px 10px; }
+.dtp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.dtp-head strong { font-size: 14px; font-weight: 650; }
+.dtp-nav {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 8px !important;
+  border: 1px solid var(--line) !important;
+}
+.dtp-nav svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.dtp-week, .dtp-grid { display: grid; grid-template-columns: repeat(7, 36px); gap: 2px; }
+.dtp-week span {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-bottom: 6px;
+}
+.dtp-week span:last-child { color: var(--danger); }
+.dtp-day {
+  height: 34px;
+  border-radius: 9px !important;
+  font-size: 13px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.dtp-day.out { color: var(--faint); opacity: 0.55; }
+.dtp-day.past:not(.sel) { color: var(--muted); }
+.dtp-day.sun:not(.sel) { color: var(--danger); }
+.dtp-day.today:not(.sel) { box-shadow: inset 0 0 0 1.5px var(--accent) !important; color: var(--accent); font-weight: 700; }
+.dtp-day.sel, .dtp-slot.sel {
+  background: var(--accent-bg) !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+.dtp-quick { display: flex; gap: 6px; margin-top: 10px; }
+.dtp-quick button {
+  flex: 1;
+  height: 30px;
+  border-radius: 8px !important;
+  border: 1px solid var(--line) !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.dtp-time {
+  grid-area: time;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  padding: 14px 10px 10px;
+  min-height: 0;
+}
+.dtp-time-head { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.dtp-slots {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 262px;
+  padding-right: 2px;
+}
+.dtp-slot {
+  height: 30px;
+  border-radius: 8px !important;
+  border: 1px solid var(--line-2) !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.dtp-exact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.dtp-exact input {
+  height: 30px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.dtp-foot {
+  grid-area: foot;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.dtp-sum { flex: 1; font-size: 13px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dtp-foot button { height: 32px; padding: 0 12px; border-radius: 8px !important; font-size: 13px; font-weight: 600; }
+.dtp-clear { color: var(--danger) !important; }
+.dtp-cancel { color: var(--muted) !important; }
+.dtp .dtp-ok { background: var(--accent-bg); color: #fff; }
+.dtp .dtp-ok:hover { background: var(--accent-600); }
+.dtp .dtp-ok:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (max-width: 560px) {
+  .dtp { grid-template-columns: 1fr; grid-template-areas: "cal" "time" "foot"; }
+  .dtp-week, .dtp-grid { grid-template-columns: repeat(7, 1fr); }
+  .dtp-time { border-left: 0; border-top: 1px solid var(--line); }
+  .dtp-slots { grid-template-columns: repeat(4, 1fr); max-height: 108px; }
+  .dtp-foot { flex-wrap: wrap; }
+  .dtp-sum { flex-basis: 100%; }
+}

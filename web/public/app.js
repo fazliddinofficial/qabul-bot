@@ -136,6 +136,180 @@ function prettyStamp(value) {
   return `${match[3]} ${months[Number(match[2]) - 1]}${time}`;
 }
 
+// Sana + vaqt tanlash oynasi (brauzerning standart kalendari o‘rniga)
+let activeDtp = null;
+function closeDateTimePicker(cancelled = true) {
+  if (!activeDtp) return;
+  const { pop, cleanup, onClose } = activeDtp;
+  activeDtp = null;
+  cleanup();
+  pop.remove();
+  if (cancelled) onClose?.();
+}
+
+function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
+  closeDateTimePicker(false);
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const months = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+  const week = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"];
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  const today = ymd(new Date());
+  let selDate = match ? `${match[1]}-${match[2]}-${match[3]}` : "";
+  let selTime = match && match[4] ? `${match[4]}:${match[5]}` : "";
+  let viewY = match ? Number(match[1]) : new Date().getFullYear();
+  let viewM = match ? Number(match[2]) - 1 : new Date().getMonth();
+  const slots = [];
+  for (let m = 8 * 60; m <= 20 * 60; m += 30) slots.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
+
+  const pop = document.createElement("div");
+  pop.className = "dtp";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", "Sana va vaqtni tanlang");
+  document.body.appendChild(pop);
+
+  function summary() {
+    if (!selDate) return "Sana tanlanmagan";
+    const [y, mo, d] = selDate.split("-").map(Number);
+    return `${d}-${months[mo - 1].toLowerCase()} ${y}${selTime ? `, ${selTime}` : ""}`;
+  }
+
+  function paint() {
+    const first = new Date(viewY, viewM, 1);
+    const lead = (first.getDay() + 6) % 7;
+    const start = new Date(viewY, viewM, 1 - lead);
+    let cells = "";
+    for (let i = 0; i < 42; i += 1) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const key = ymd(d);
+      const cls = [
+        "dtp-day",
+        d.getMonth() !== viewM ? "out" : "",
+        key < today ? "past" : "",
+        key === today ? "today" : "",
+        key === selDate ? "sel" : "",
+        d.getDay() === 0 ? "sun" : "",
+      ].filter(Boolean).join(" ");
+      cells += `<button type="button" class="${cls}" data-day="${key}">${d.getDate()}</button>`;
+    }
+    const timeBtns = slots
+      .map((t) => `<button type="button" class="dtp-slot${t === selTime ? " sel" : ""}" data-time="${t}">${t}</button>`)
+      .join("");
+    pop.innerHTML = `
+      <div class="dtp-cal">
+        <div class="dtp-head">
+          <button type="button" class="dtp-nav" data-nav="-1" aria-label="Oldingi oy"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <strong>${months[viewM]} ${viewY}</strong>
+          <button type="button" class="dtp-nav" data-nav="1" aria-label="Keyingi oy"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="dtp-week">${week.map((w) => `<span>${w}</span>`).join("")}</div>
+        <div class="dtp-grid">${cells}</div>
+        <div class="dtp-quick">
+          <button type="button" data-quick="0">Bugun</button>
+          <button type="button" data-quick="1">Ertaga</button>
+        </div>
+      </div>
+      <div class="dtp-time">
+        <div class="dtp-time-head">Vaqt</div>
+        <div class="dtp-slots">${timeBtns}</div>
+        <label class="dtp-exact">Aniq vaqt <input type="time" step="300" value="${selTime}" /></label>
+      </div>
+      <div class="dtp-foot">
+        <span class="dtp-sum">${summary()}</span>
+        <button type="button" class="dtp-clear">Tozalash</button>
+        <button type="button" class="dtp-cancel">Bekor</button>
+        <button type="button" class="dtp-ok"${selDate ? "" : " disabled"}>Saqlash</button>
+      </div>`;
+  }
+
+  function place() {
+    const r = anchor.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = pop.offsetWidth;
+    const h = pop.offsetHeight;
+    let top = r.bottom + 8;
+    if (top + h > vh - 12 && r.top - h - 8 > 12) top = r.top - h - 8;
+    top = Math.max(12, Math.min(top, vh - h - 12));
+    const left = Math.max(16, Math.min(r.left, vw - w - 16));
+    pop.style.top = `${top}px`;
+    pop.style.left = `${left}px`;
+  }
+
+  pop.addEventListener("click", (event) => {
+    const t = event.target.closest("button");
+    if (!t) return;
+    if (t.dataset.nav) {
+      viewM += Number(t.dataset.nav);
+      if (viewM < 0) { viewM = 11; viewY -= 1; }
+      if (viewM > 11) { viewM = 0; viewY += 1; }
+    } else if (t.dataset.day) {
+      selDate = t.dataset.day;
+      const [y, mo] = selDate.split("-").map(Number);
+      viewY = y;
+      viewM = mo - 1;
+    } else if (t.dataset.quick) {
+      const d = new Date();
+      d.setDate(d.getDate() + Number(t.dataset.quick));
+      selDate = ymd(d);
+      viewY = d.getFullYear();
+      viewM = d.getMonth();
+    } else if (t.dataset.time) {
+      selTime = t.dataset.time;
+    } else if (t.classList.contains("dtp-clear")) {
+      closeDateTimePicker(false);
+      onPick?.("");
+      return;
+    } else if (t.classList.contains("dtp-cancel")) {
+      closeDateTimePicker(true);
+      return;
+    } else if (t.classList.contains("dtp-ok")) {
+      if (!selDate) return;
+      closeDateTimePicker(false);
+      onPick?.(`${selDate}T${selTime || "10:00"}`);
+      return;
+    }
+    const keep = pop.querySelector(".dtp-slots")?.scrollTop;
+    paint();
+    if (keep != null) pop.querySelector(".dtp-slots").scrollTop = keep;
+    place();
+  });
+  pop.addEventListener("change", (event) => {
+    if (!event.target.matches('.dtp-exact input')) return;
+    selTime = event.target.value || "";
+    const keep = pop.querySelector(".dtp-slots")?.scrollTop;
+    paint();
+    if (keep != null) pop.querySelector(".dtp-slots").scrollTop = keep;
+  });
+
+  const outside = (event) => {
+    if (pop.contains(event.target) || anchor.contains(event.target)) return;
+    closeDateTimePicker(true);
+  };
+  const onKey = (event) => {
+    if (event.key === "Escape") closeDateTimePicker(true);
+  };
+  document.addEventListener("pointerdown", outside, true);
+  document.addEventListener("keydown", onKey);
+  window.addEventListener("resize", place);
+  window.addEventListener("scroll", place, true);
+  activeDtp = {
+    pop,
+    onClose,
+    cleanup() {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    },
+  };
+  paint();
+  const list = pop.querySelector(".dtp-slots");
+  const picked = list?.querySelector(".dtp-slot.sel") || list?.querySelector('[data-time="10:00"]');
+  if (list && picked) list.scrollTop = picked.offsetTop - list.clientHeight / 2 + picked.offsetHeight / 2;
+  place();
+}
+
 function uzContractDate(value) {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return "";
@@ -1315,7 +1489,7 @@ async function openDetail(id, silent = false) {
               <button type="button" class="tone-left" data-call="left"><i></i>Ishdan bo‘shagan</button>
             </div>`,
           )}
-          ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="datetime-local" value="${esc(item.interviewAt || "")}" />`)}
+          ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="hidden" value="${esc(item.interviewAt || "")}" />`)}
           ${editCard("workStart", "Ish boshlash", prettyStamp(item.workStart), `<input name="workStart" type="date" value="${esc(item.workStart || "")}" />`)}
           ${editCard("agreedSalary", "Kelishilgan oylik", formatSum(item.agreedSalary), `<input name="agreedSalary" value="${esc(formatSum(item.agreedSalary))}" placeholder="5 000 000" />`)}
           <button type="button" class="pass-field has-ico score-launch" id="open-assess"${fieldStyle("score")} title="20 ta pedagogik savol bo‘yicha baholash">
@@ -1569,6 +1743,20 @@ async function openDetail(id, silent = false) {
         card.querySelectorAll("[data-call]").forEach((button) => {
           button.classList.toggle("active", button.dataset.call === draft.interviewStatus);
         });
+      }
+      if (card.dataset.edit === "interviewAt") {
+        const hidden = card.querySelector('input[name="interviewAt"]');
+        openDateTimePicker(card, hidden?.value || draft.interviewAt, {
+          onPick(next) {
+            if (!hidden) return;
+            hidden.value = next;
+            hidden.dispatchEvent(new Event("change"));
+          },
+          onClose() {
+            card.classList.remove("editing");
+          },
+        });
+        return;
       }
       card.querySelector("input, textarea")?.focus();
       if (card.dataset.edit === "hiredAt") {
