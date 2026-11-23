@@ -325,6 +325,33 @@ export async function ensureDefaultAdmin() {
   return publicStaff(created);
 }
 
+// CRM (metafor.uz) dagi CEO uchun panel hisobi: parolsiz (SSO) kiradi, oddiy login bilan kirib bo‘lmaydi
+export const SSO_CEO_USERNAME = "crm-ceo";
+
+export async function ensureSsoCeo({ name } = {}) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  const surname = parts[0] || "CEO";
+  const first = parts.slice(1).join(" ") || "(CRM)";
+  let doc = await Staff.findOne({ ownerToken: ownerToken(), username: SSO_CEO_USERNAME });
+  if (!doc) {
+    doc = await Staff.create({
+      ownerToken: ownerToken(),
+      username: SSO_CEO_USERNAME,
+      // Hech kim bilmaydigan tasodifiy parol — bu hisobga faqat CRM orqali kiriladi
+      passwordHash: await hashPassword(randomBytes(32).toString("hex")),
+      surname,
+      name: first,
+      role: "admin",
+    });
+  } else if (doc.role !== "admin" || doc.surname !== surname || doc.name !== first) {
+    doc.role = "admin";
+    doc.surname = surname;
+    doc.name = first;
+    await doc.save();
+  }
+  return publicStaff(doc);
+}
+
 export async function authenticateStaff(username, password) {
   const login = String(username || "").trim().toLowerCase();
   if (!login || !password) return null;

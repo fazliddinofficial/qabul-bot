@@ -47,6 +47,8 @@ import {
   deleteContractTemplate,
 } from "../db.js";
 import { TEMPLATE_TAGS, inspectTemplate, fillTemplate } from "./contract-templates.js";
+import { verifyHrToken, SsoError } from "./sso.js";
+import { ensureSsoCeo } from "../db.js";
 
 const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -212,6 +214,38 @@ export async function startWeb() {
       detail: `Login: ${user.username}`,
     });
     return res.json({ ok: true, user });
+  });
+
+  // CRM (metafor.uz) → HR: CEO parolsiz kiradi (bir martalik imzolangan havola)
+  app.get("/sso", async (req, res) => {
+    const fail = (message) =>
+      res
+        .status(401)
+        .type("html")
+        .send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kirib bo‘lmadi</title><body style="font-family:system-ui,sans-serif;background:#0b0f17;color:#e7eaf0;display:grid;place-items:center;min-height:100vh;margin:0"><div style="max-width:420px;padding:24px;text-align:center"><h2 style="margin:0 0 8px">Kirib bo‘lmadi</h2><p style="color:#8e97a8">${String(message).replace(/[<>&]/g, "")}</p><a href="/" style="color:#8f95fb">Login sahifasiga o‘tish</a></div></body>`);
+    let payload;
+    try {
+      payload = verifyHrToken(req.query.t, process.env.HR_SSO_SECRET || "");
+    } catch (error) {
+      if (!(error instanceof SsoError)) console.error("SSO xatosi:", error?.message || error);
+      await recordActivity({
+        actor: { username: "crm-sso" },
+        action: "CRM orqali kirish rad etildi",
+        detail: error instanceof SsoError ? error.message : "Ichki xato",
+      });
+      return fail(error instanceof SsoError ? error.message : "Ichki xato");
+    }
+    const user = await ensureSsoCeo({ name: payload.name });
+    req.session.regenerate(async (error) => {
+      if (error) return fail("Sessiya ochilmadi, qayta urinib ko‘ring");
+      req.session.user = user;
+      await recordActivity({
+        actor: user,
+        action: "CRM orqali kirdi (parolsiz)",
+        detail: `${payload.name || "CEO"} · metafor.uz`,
+      });
+      req.session.save(() => res.redirect(302, "/"));
+    });
   });
 
   app.post("/api/logout", (req, res) => {
