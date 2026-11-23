@@ -2,20 +2,24 @@
 // Shablon ichida {FISH}, {KURS}, {SUMMA_SOZ} kabi belgilar yoziladi — ular almashtiriladi.
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { numberToUzWords, cyrDate, courseToCyr, formatPrice, docLabelCyr } from "./public/student-contract.js";
+import { numberToUzWords, cyrDate, courseToCyr, formatPrice, docLabelCyr, toScript, cyrName, cyrAddress } from "./public/student-contract.js";
 
 export const TEMPLATE_TAGS = [
   ["RAQAM", "Shartnoma raqami", "1/2026"],
   ["SANA", "Shartnoma sanasi (kirill)", "«23» ноябрь 2026 й."],
   ["SANA_RAQAM", "Shartnoma sanasi (raqamda)", "23.11.2026"],
-  ["FISH", "O‘quvchining F.I.Sh", "Karimov Sardor Aliyevich"],
+  ["FISH", "O‘quvchining F.I.Sh (shablon yozuvida)", "Karimov Sardor Aliyevich"],
+  ["FISH_KIRILL", "F.I.Sh doim kirillda", "Каримов Сардор Алиевич"],
+  ["FISH_LOTIN", "F.I.Sh doim lotinda", "Karimov Sardor Aliyevich"],
   ["TUGILGAN_SANA", "Tug‘ilgan sana", "12.03.2006"],
   ["HUJJAT", "Hujjat turi (kirill)", "ID карта"],
   ["PASPORT", "Hujjat seriyasi va raqami", "AB7654321"],
   ["PASPORT_BERILGAN", "Pasport berilgan sana", "01.09.2022"],
   ["PASPORT_BERGAN", "Pasport bergan organ", "Jizzax IIB"],
   ["JSHSHIR", "JSHSHIR", "30603061234567"],
-  ["MANZIL", "Manzil", "Jizzax sh., Sharq mahallasi 5"],
+  ["MANZIL", "Manzil (shablon yozuvida)", "Jizzax sh., Sharq mahallasi 5"],
+  ["MANZIL_KIRILL", "Manzil doim kirillda", "Жиззах ш., Шарқ маҳалласи 5"],
+  ["MANZIL_LOTIN", "Manzil doim lotinda", "Jizzax sh., Sharq mahallasi 5"],
   ["TELEFON", "Telefon", "+998901112233"],
   ["EMAIL", "E-pochta", "misol@gmail.com"],
   ["KURS", "Kurs (shartnomadagi nomi)", "Бухгалтерия ҳисоби"],
@@ -39,7 +43,33 @@ function dottedDate(iso) {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : "";
 }
 
-export function templateValues(item) {
+// Shablon matni qaysi yozuvda: kirill harflari ko‘p bo‘lsa — "cyr", aks holda "lat"
+export function detectScript(text) {
+  const clean = String(text || "").replace(/\{[^{}]*\}/g, " ");
+  const cyr = (clean.match(/[А-Яа-яЁёЎўҚқҒғҲҳ]/g) || []).length;
+  const lat = (clean.match(/[A-Za-z]/g) || []).length;
+  return cyr > lat ? "cyr" : "lat";
+}
+
+// Matnli qiymatlarni shablon yozuviga keltiramiz; raqam/seriya/telefon o‘zgarmaydi
+const SCRIPT_KEYS = ["SANA", "FISH", "HUJJAT", "PASPORT_BERGAN", "MANZIL", "KURS", "MUDDAT_SOZ", "SUMMA_SOZ"];
+
+export function templateValues(item, script = "cyr") {
+  const base = rawTemplateValues(item);
+  const out = { ...base };
+  for (const key of SCRIPT_KEYS) out[key] = toScript(base[key], script);
+  if (script === "cyr") {
+    out.FISH = cyrName(item) || out.FISH;
+    out.MANZIL = cyrAddress(item) || out.MANZIL;
+  }
+  out.FISH_KIRILL = cyrName(item);
+  out.FISH_LOTIN = toScript(item.fullName, "lat");
+  out.MANZIL_KIRILL = cyrAddress(item);
+  out.MANZIL_LOTIN = toScript(item.address, "lat");
+  return out;
+}
+
+function rawTemplateValues(item) {
   const price = String(item.contractPrice || "").replace(/\D/g, "");
   const months = String(item.contractMonths || "").replace(/\D/g, "");
   return {
@@ -114,7 +144,7 @@ export function inspectTemplate(buffer) {
 
 export function fillTemplate(buffer, item) {
   const doc = compile(buffer);
-  const values = templateValues(item);
+  const values = templateValues(item, detectScript(doc.getFullText()));
   const filled = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, String(value || "").trim() || BLANK]));
   try {
     doc.render(filled);

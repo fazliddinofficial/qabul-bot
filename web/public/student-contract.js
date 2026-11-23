@@ -71,38 +71,118 @@ export const COURSES_CYR = [
   ["mental", "Ментал арифметика"],
 ];
 
-const PAIRS = [
-  ["o‘", "ў"], ["o'", "ў"], ["oʻ", "ў"], ["o`", "ў"], ["g‘", "ғ"], ["g'", "ғ"], ["gʻ", "ғ"], ["g`", "ғ"],
-  ["sh", "ш"], ["ch", "ч"], ["yo", "ё"], ["yu", "ю"], ["ya", "я"], ["ye", "е"],
-];
-const SINGLE = {
-  a: "а", b: "б", d: "д", e: "е", f: "ф", g: "г", h: "ҳ", i: "и", j: "ж", k: "к", l: "л", m: "м", n: "н",
-  o: "о", p: "п", q: "қ", r: "р", s: "с", t: "т", u: "у", v: "в", x: "х", y: "й", z: "з", c: "с", w: "в",
-  "'": "ъ", "‘": "ъ", "ʼ": "ъ", "’": "ъ",
+// ============ O‘zbek lotin ⇄ kirill (rasmiy imlo qoidalari bo‘yicha) ============
+const APOS_RE = /[ʻʼ'‘’`´]/;
+const LAT_SINGLE = {
+  a: "а", b: "б", c: "с", d: "д", f: "ф", g: "г", h: "ҳ", i: "и", j: "ж", k: "к", l: "л", m: "м", n: "н",
+  o: "о", p: "п", q: "қ", r: "р", s: "с", t: "т", u: "у", v: "в", w: "в", x: "х", z: "з",
 };
+const CYR_VOWELS = "аеёиоуэюяўАЕЁИОУЭЮЯЎ";
 
-// Oddiy lotin → kirill o‘girish (kurs nomi uchun; panelda tahrirlash mumkin)
-export function latinToCyr(text) {
+export function hasCyrillic(text) {
+  return /[А-Яа-яЁёЎўҚқҒғҲҳ]/.test(String(text || ""));
+}
+export function hasLatin(text) {
+  return /[A-Za-z]/.test(String(text || ""));
+}
+
+function isLatinLetter(ch) {
+  return /[A-Za-z]/.test(ch || "");
+}
+
+function caseLike(source, cyr, nextSource) {
+  if (source === source.toLowerCase()) return cyr;
+  // Butun so‘z katta harfda (SHARQ) bo‘lsa — katta; aks holda faqat bosh harf (Sh → Ш)
+  return cyr.toUpperCase();
+}
+
+// "Karimov Sardor Aliyevich" → "Каримов Сардор Алиевич", "Yo'ldosh" → "Йўлдош", "Ma'ruf" → "Маъруф"
+export function latinToCyrillic(text) {
+  const s = String(text || "");
   let out = "";
-  const src = String(text || "");
-  for (let i = 0; i < src.length; ) {
-    const lower = src.slice(i, i + 2).toLowerCase();
-    const pair = PAIRS.find(([lat]) => lat === lower);
-    const atWordStart = i === 0 || /[\s(«"-]/.test(src[i - 1]);
-    let cyr;
-    let len = 1;
-    if (pair) {
-      cyr = pair[1];
-      len = 2;
-    } else {
-      const ch = src[i].toLowerCase();
-      cyr = ch === "e" && atWordStart ? "э" : SINGLE[ch] ?? src[i];
+  for (let i = 0; i < s.length; ) {
+    const ch = s[i];
+    const lo = ch.toLowerCase();
+    const next = s[i + 1] || "";
+    const nlo = next.toLowerCase();
+    const prev = s[i - 1] || "";
+    const wordStart = !isLatinLetter(prev) && !APOS_RE.test(prev);
+    const lastOut = out.slice(-1);
+    if (!isLatinLetter(ch)) {
+      // tutuq belgisi (ma'no, Ma'ruf) → ъ; boshqa belgilar o‘zgarmaydi
+      if (APOS_RE.test(ch) && isLatinLetter(prev) && isLatinLetter(next)) out += "ъ";
+      else out += ch;
+      i += 1;
+      continue;
     }
-    const upper = src[i] !== src[i].toLowerCase();
-    out += upper ? cyr.charAt(0).toUpperCase() + cyr.slice(1) : cyr;
-    i += len;
+    if ((lo === "o" || lo === "g") && APOS_RE.test(next)) {
+      out += caseLike(ch, lo === "o" ? "ў" : "ғ");
+      i += 2;
+      continue;
+    }
+    if (lo === "s" && nlo === "h") { out += caseLike(ch, "ш"); i += 2; continue; }
+    if (lo === "c" && nlo === "h") { out += caseLike(ch, "ч"); i += 2; continue; }
+    if (lo === "y") {
+      if (nlo === "o" && APOS_RE.test(s[i + 2] || "")) { out += caseLike(ch, "й"); i += 1; continue; }
+      const pair = { o: "ё", u: "ю", a: "я", e: "е" }[nlo];
+      if (pair) { out += caseLike(ch, pair); i += 2; continue; }
+      out += caseLike(ch, "й");
+      i += 1;
+      continue;
+    }
+    if (lo === "e") {
+      // so‘z boshida yoki unlidan keyin — э (Elmurod → Элмурод, poema → поэма)
+      out += caseLike(ch, wordStart || (lastOut && CYR_VOWELS.includes(lastOut)) ? "э" : "е");
+      i += 1;
+      continue;
+    }
+    out += caseLike(ch, LAT_SINGLE[lo] || ch);
+    i += 1;
   }
   return out;
+}
+
+const CYR_SINGLE = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", ж: "j", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n",
+  о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "x", ч: "ch", ш: "sh", щ: "sh", ы: "i", э: "e",
+  ё: "yo", ю: "yu", я: "ya", ў: "o‘", қ: "q", ғ: "g‘", ҳ: "h", ъ: "’", ь: "",
+};
+const isCyrLetter = (ch) => /[А-Яа-яЁёЎўҚқҒғҲҳ]/.test(ch || "");
+
+// "Каримов Сардор Алиевич" → "Karimov Sardor Aliyevich", "Тошкент" → "Toshkent"
+export function cyrillicToLatin(text) {
+  const s = String(text || "");
+  let out = "";
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    const lo = ch.toLowerCase();
+    if (!isCyrLetter(ch)) { out += ch; continue; }
+    const prev = s[i - 1] || "";
+    const next = s[i + 1] || "";
+    let lat;
+    if (lo === "е") lat = !isCyrLetter(prev) || CYR_VOWELS.includes(prev) || prev.toLowerCase() === "ъ" || prev.toLowerCase() === "ь" ? "ye" : "e";
+    else if (lo === "ц") lat = !isCyrLetter(prev) || CYR_VOWELS.includes(prev) ? "s" : "ts";
+    else lat = CYR_SINGLE[lo] ?? ch;
+    if (ch !== lo && lat) {
+      const wholeUpper = isCyrLetter(next) && next !== next.toLowerCase();
+      lat = wholeUpper ? lat.toUpperCase() : lat.charAt(0).toUpperCase() + lat.slice(1);
+    }
+    out += lat;
+  }
+  return out;
+}
+
+// Matnni kerakli yozuvga keltiradi: "cyr" — kirill, "lat" — lotin
+export function toScript(text, script) {
+  const value = String(text || "");
+  if (script === "cyr") return hasLatin(value) ? latinToCyrillic(value) : value;
+  if (script === "lat") return hasCyrillic(value) ? cyrillicToLatin(value) : value;
+  return value;
+}
+
+// eski nom (kurs nomi uchun ishlatilgan)
+export function latinToCyr(text) {
+  return latinToCyrillic(text);
 }
 
 export function courseToCyr(course) {
@@ -131,12 +211,20 @@ function fill(value, blank = "____________________") {
   return clean ? esc(clean) : blank;
 }
 
+// Shartnoma kirillda — lotincha yozilgan ism/manzil kirillga o‘giriladi (panelda qo‘lda tuzatilgani bo‘lsa, o‘sha)
+export function cyrName(data) {
+  return String(data.fullNameCyr || "").trim() || toScript(data.fullName, "cyr");
+}
+export function cyrAddress(data) {
+  return String(data.addressCyr || "").trim() || toScript(data.address, "cyr");
+}
+
 export function buildStudentContractHtml(data) {
   const priceDigits = String(data.contractPrice || "").replace(/\D/g, "");
   const months = Number(String(data.contractMonths || "").replace(/\D/g, "")) || 0;
   const v = {
     number: fill(data.contractNumber, "____"),
-    fullName: `<b>${fill(data.fullName, "__________________________________________________")}</b>`,
+    fullName: `<b>${fill(cyrName(data), "__________________________________________________")}</b>`,
     passport: fill(data.passportSeries, "__________"),
     jshshir: fill(data.jshshir, "__________________"),
     course: fill(data.contractCourse || courseToCyr(data.course), "______________________"),
@@ -209,7 +297,7 @@ export function buildStudentContractHtml(data) {
 <p class="sign">_________________ (имзо, М.Ў.)</p></td>
 <td><p><b>«Буюртмачи»</b></p>
 <p>Ф.И.Ш.: ${v.fullName}</p>
-<p>Манзили: ${fill(data.address, "__________________________________")}</p>
+<p>Манзили: ${fill(cyrAddress(data), "__________________________________")}</p>
 <p>${data.docType ? docLabelCyr(data.docType) : "Паспорт (ёки ID карта)"} серия ва рақами: ${v.passport}</p>
 <p>ЖШШИР: ${v.jshshir}</p>
 <p>Телефон рақами: ${fill(data.phone, "______________________________")}</p>

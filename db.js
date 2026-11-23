@@ -168,6 +168,9 @@ const studentContractSchema = new mongoose.Schema(
     jshshir: { type: String, default: "" },
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
+    // Kirill shartnoma uchun qo‘lda tuzatilgan ism/manzil (bo‘sh bo‘lsa avtomatik o‘giriladi)
+    fullNameCyr: { type: String, default: "" },
+    addressCyr: { type: String, default: "" },
     // Shartnoma qaysi hujjat bilan: id (ID karta) | passport | birth (tug'ilganlik guvohnomasi)
     docType: { type: String, default: "" },
     note: { type: String, default: "" },
@@ -1310,6 +1313,8 @@ const STUDENT_TEXT_FIELDS = {
   address: 300,
   phone: 40,
   note: 2000,
+  fullNameCyr: 200,
+  addressCyr: 300,
   docType: 10,
   email: 120,
   contractNumber: 40,

@@ -10,10 +10,11 @@ import {
 import {
   buildStudentContractHtml,
   courseToCyr,
+  latinToCyrillic,
   COURSES_CYR,
   numberToUzWords,
   formatPrice,
-} from "./student-contract.js?v=28";
+} from "./student-contract.js?v=35";
 
 const loginView = document.querySelector("#login-view");
 const appView = document.querySelector("#app-view");
@@ -2747,6 +2748,14 @@ function renderStudentDetail(item) {
               ${studentCourses.map((c) => `<option value="${esc(c._id)}" ${c._id === item.courseId ? "selected" : ""}>${esc(c.name)}${c.price ? ` — ${esc(formatPrice(c.price))} so‘m` : ""}${c.months ? `, ${esc(c.months)} oy` : ""}</option>`).join("")}
             </select>
           </label>` : ""}
+          <label class="stu-field span2">
+            <span>F.I.Sh shartnomada (kirillda) — bo‘sh qolsa avtomatik</span>
+            <input name="fullNameCyr" value="${esc(item.fullNameCyr || "")}" placeholder="${esc(latinToCyrillic(item.fullName || "") || "Каримов Сардор Алиевич")}" ${editable ? "" : "readonly"} />
+          </label>
+          <label class="stu-field span2">
+            <span>Manzil shartnomada (kirillda) — bo‘sh qolsa avtomatik</span>
+            <input name="addressCyr" value="${esc(item.addressCyr || "")}" placeholder="${esc(latinToCyrillic(item.address || "") || "Жиззах ш., Шарқ маҳалласи 5")}" ${editable ? "" : "readonly"} />
+          </label>
           <label class="stu-field">
             <span>Kurs (shartnomada, kirillda)</span>
             <input name="contractCourse" list="stu-courses" value="${esc(item.contractCourse || courseToCyr(item.course))}" placeholder="Инглиз тили" ${editable ? "" : "readonly"} />
@@ -2776,6 +2785,9 @@ function renderStudentDetail(item) {
     </form>`;
   studentDetail.querySelector("#stu-back").addEventListener("click", showStudentList);
   const form = studentDetail.querySelector("#stu-form");
+  // Lotincha ism/manzil o‘zgarsa — kirill varianti (placeholder) ham yangilanadi
+  form.fullName?.addEventListener("input", () => { form.fullNameCyr.placeholder = latinToCyrillic(form.fullName.value) || "Каримов Сардор Алиевич"; });
+  form.address?.addEventListener("input", () => { form.addressCyr.placeholder = latinToCyrillic(form.address.value) || "Жиззах ш., Шарқ маҳалласи 5"; });
   studentDetail.querySelector("#stu-course-pick")?.addEventListener("change", (event) => {
     const course = studentCourses.find((c) => c._id === event.target.value);
     if (!course) return;
