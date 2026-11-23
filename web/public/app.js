@@ -1828,13 +1828,13 @@ async function openDetail(id, silent = false) {
   const person = splitName(item.fullName);
   const shown = (value) => (value === 0 || value ? esc(value) : "—");
   const block = (label, value, wide = false) => `
-    <div class="pass-field ${wide ? "wide" : ""}${fieldLook[label] ? " has-ico" : ""}"${fieldStyle(label)}>
+    <div class="pass-field ${wide ? "wide" : ""}${String(value ?? "").length > 24 ? " long" : ""}${fieldLook[label] ? " has-ico" : ""}"${fieldStyle(label)}>
       ${fieldIcon(label)}
       <span>${label}</span>
       <strong>${shown(value)}</strong>
     </div>`;
   const editCard = (key, label, display, control, askSave = false) => `
-    <div class="pass-field edit-card${fieldLook[key] ? " has-ico" : ""}" data-edit="${key}"${fieldStyle(key)}>
+    <div class="pass-field edit-card${String(display ?? "").length > 24 ? " long" : ""}${fieldLook[key] ? " has-ico" : ""}" data-edit="${key}"${fieldStyle(key)}>
       ${fieldIcon(key)}
       <span>${label}</span>
       <strong class="edit-view">${shown(display)}</strong>

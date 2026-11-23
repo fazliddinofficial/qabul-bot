@@ -3657,3 +3657,95 @@ dialog#students-dialog {
 }
 .detail-head .crm-launch.done { box-shadow: inset 0 0 0 1px color-mix(in srgb, #10b981 45%, transparent); }
 .detail-head .crm-launch svg { width: 14px; height: 14px; }
+
+
+/* ============ Telefon va planshet (umumiy moslashuv) ============ */
+/* Kartaning bo‘laklari siqilib bir-birining ustiga chiqmasin — o‘rniga karta aylanadi */
+.pass > * { flex-shrink: 0; }
+
+@media (max-width: 900px) {
+  /* planshet: uzun matnli maydonlar butun qatorni egallaydi */
+  .pass-raise .pass-field.long { grid-column: span 2; }
+}
+
+@media (max-width: 640px) {
+  /* sarlavha: logotip + tugmalar sig‘sin */
+  .brand > div:not(.brand-mark), .brand strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* holat hisoblagichlari: yonma-yon suriladigan qator */
+  .stats {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    margin: 0 -16px;
+    padding: 2px 16px 6px;
+  }
+  .stats::-webkit-scrollbar { display: none; }
+  .stat { flex: 0 0 132px; scroll-snap-align: start; padding: 10px 12px; }
+  .stat b { font-size: 20px; }
+  /* nomzod kartasi */
+  #detail-body { padding: 8px; }
+  .pass { padding: 12px; border-radius: 14px; }
+  .photo-frame { width: 120px; }
+  .pass-raise .pass-field.long, .pass-meta .pass-field.long, .pass-next .pass-field.long { grid-column: 1 / -1; }
+  .detail-head { gap: 6px; padding: 0 10px; }
+  .detail-head .crm-launch { width: 32px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  .detail-head .crm-launch svg { width: 15px; height: 15px; }
+  .notes-card .notes-list { max-height: 240px; }
+  .note-form textarea { font-size: 16px; } /* iOS kattalashtirib yubormasin */
+}
+
+@media (max-width: 420px) {
+  .brand strong { display: none; }
+}
+
+@media (max-width: 640px) {
+  .contract-cards .pass-field.long, .pass-identity .pass-field.long { grid-column: 1 / -1; }
+  /* izohlar: belgi ustuni telefonda joy egallamasin */
+  .pass > .notes-card { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "list" "form"; padding: 10px; }
+  .pass > .notes-card.has-ico > .pf-ico { display: none; }
+  .note-item { padding: 8px; gap: 8px; }
+  .note-meta { flex-wrap: wrap; row-gap: 0; }
+}
+
+/* Arxiv va O‘quvchilar oynalari: ichidagi bloklar ekran kengligidan chiqmasin */
+.arc-wrap > * { min-width: 0; }
+.arc-head > * { min-width: 0; }
+@media (max-width: 760px) {
+  .arc-head .search, .arc-head .tpl-open { grid-column: 1 / -1; }
+  .tpl-open { justify-self: start; }
+}
+@media (max-width: 640px) {
+  .arc-wrap { width: calc(100% - 24px); margin: 14px auto 40px; gap: 12px; }
+  .arc-head { gap: 10px 12px; padding: 14px; border-radius: 16px; }
+  .arc-head .dialog-ico { width: 42px; height: 42px; border-radius: 12px; }
+  .arc-head .dialog-ico svg { width: 20px; height: 20px; }
+  .arc-title h2 { font-size: 19px; flex-wrap: wrap; row-gap: 4px; }
+  .arc-title .muted { font-size: 12.5px; }
+  .arc-card { padding: 12px; gap: 12px; }
+  .arc-photo { width: 52px; height: 64px; }
+  .stu-detail-title h2 { font-size: 20px; }
+  .stu-doc-view, .stu-doc .doc-empty { height: 150px; }
+  .tpl-how { padding: 12px; }
+  .tpl-how ol { flex-basis: 100%; }
+  .tpl-legend-grid { grid-template-columns: 1fr; }
+  /* metafor oynasi: tugmalar doim ko‘rinib tursin */
+  .crm-box { padding: 16px; gap: 12px; }
+  .crm-actions { position: sticky; bottom: -16px; margin: 0 -16px -16px; padding: 12px 16px; background: var(--surface); border-top: 1px solid var(--line); }
+  .crm-seg span { padding: 8px 6px; font-size: 13px; }
+  /* matn kiritishda iOS sahifani kattalashtirib yubormasin */
+  input, select, textarea { font-size: 16px; }
+}
+/* sahifa bloklari va filtr maydonlari ekrandan kengayib ketmasin */
+.app > *, .filterbar > *, .filterbar label, .groups > * { min-width: 0; }
+.filterbar input, .filterbar select { width: 100%; min-width: 0; }
+@media (max-width: 640px) {
+  .filterbar { gap: 10px; padding: 12px; }
+  .filterbar input[type="date"] { padding-left: 10px; padding-right: 6px; font-size: 15px; }
+}
+@media (max-width: 360px) {
+  .filterbar { grid-template-columns: 1fr; }
+}
+@media (min-width: 641px) and (max-width: 1200px) {
+  .stats { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+}
