@@ -244,8 +244,8 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify 
       {
         parse_mode: "HTML",
         ...Markup.inlineKeyboard([
-          [Markup.button.callback("👔 Xodim (ishga kirgan)", "contract:staff")],
-          [Markup.button.callback("🎓 O'quvchilar shartnoma qilish", "contract:student")],
+          [Markup.button.callback("📄 Xodim shartnomasi", "contract:staff")],
+          [Markup.button.callback("🎓 O'quvchi shartnomasi", "contract:student")],
         ]),
       },
     );

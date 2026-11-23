@@ -254,7 +254,8 @@ bot.start(async (ctx) => {
           Markup.button.callback("✅ Ha, birinchi marta", "firstTime"),
           Markup.button.callback("❌ Yo'q, avval topshirganman", "secondTime"),
         ],
-        [Markup.button.callback("📄 Shartnoma qilish", "contract")],
+        [Markup.button.callback("📄 Xodim shartnomasi", "contract:staff")],
+        [Markup.button.callback("🎓 O'quvchi shartnomasi", "contract:student")],
       ]),
     );
   } catch (error) {

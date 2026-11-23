@@ -2258,7 +2258,7 @@ function renderStudents() {
       <div class="empty arc-empty">
         <span class="arc-empty-ico stu-empty-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg></span>
         <strong>${query ? "Hech narsa topilmadi" : "Hali o‘quvchi shartnomasi yo‘q"}</strong>
-        <p>${query ? "Boshqa so‘z bilan qidirib ko‘ring." : "O‘quvchi botda /start → «📄 Shartnoma qilish» → «🎓 O‘quvchilar shartnoma qilish» ni tanlab ma’lumot yuborsa, shu yerda paydo bo‘ladi."}</p>
+        <p>${query ? "Boshqa so‘z bilan qidirib ko‘ring." : "O‘quvchi botda /start → «🎓 O‘quvchi shartnomasi» tugmasini bosib ma’lumot yuborsa, shu yerda paydo bo‘ladi."}</p>
       </div>`;
     return;
   }
