@@ -684,9 +684,25 @@ function interviewKey(status) {
   return "none";
 }
 
+// "Chaqirildi" bo‘lib, belgilangan suhbat vaqti o‘tib ketgan bo‘lsa — "Kelmadi" deb ko‘rsatamiz (bazada holat o‘zgarmaydi)
+function interviewOverdue(item) {
+  if (interviewKey(item?.interviewStatus) !== "expected") return false;
+  const m = String(item?.interviewAt || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return false;
+  const at = m[4]
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]))
+    : new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59);
+  return at.getTime() <= Date.now();
+}
+
+function interviewTone(item) {
+  return interviewOverdue(item) ? "late" : interviewKey(item?.interviewStatus);
+}
+
 const interviewLabels = {
   none: "Chaqirilmagan",
   expected: "Chaqirildi",
+  late: "Kelmadi",
   arrived: "Zaxirada",
   missed: "Kelmagan",
   hired: "Boshqa joyga ishga kirgan",
@@ -843,7 +859,7 @@ function cardActions(item) {
 
 function cardHtml(item) {
   const person = splitName(item.fullName);
-  const tone = interviewKey(item.interviewStatus);
+  const tone = interviewTone(item);
   const initials = [person.surname, person.name]
     .filter((part) => part && part !== "—")
     .map((part) => part.charAt(0).toUpperCase())
@@ -1079,8 +1095,19 @@ async function loadApplications() {
   const data = await res.json();
   allItems = data.items || [];
   knownPositions = data.positions || [];
+  overdueMark = overdueIds();
   render();
 }
+
+// Suhbat vaqti o‘tgan zahoti kartochka sahifa yangilanmasa ham "Kelmadi" rangiga o‘tsin
+let overdueMark = "";
+const overdueIds = () => allItems.filter(interviewOverdue).map((item) => item._id).join(",");
+setInterval(() => {
+  const mark = overdueIds();
+  if (mark === overdueMark) return;
+  overdueMark = mark;
+  render();
+}, 60 * 1000);
 
 const svgPaths = {
   chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
@@ -1425,7 +1452,7 @@ async function openDetail(id, silent = false) {
       </div>
     </div>`;
 
-  const interview = interviewKey(item.interviewStatus);
+  const interview = interviewTone(item);
   const photoUrl = `/api/applications/${esc(item._id)}/photo`;
   const docSlots = [
     ["passportFront", "Pasport oldi", item.hasPassportFront, item.passportFrontName, item.passportFrontType],
@@ -1636,17 +1663,17 @@ async function openDetail(id, silent = false) {
 
   const interviewCard = detailBody.querySelector('[data-edit="interviewStatus"]');
   function paintInterview(card) {
-    const tones = ["tone-none", "tone-expected", "tone-arrived", "tone-missed", "tone-hired", "tone-started", "tone-left"];
+    const tones = ["tone-none", "tone-expected", "tone-late", "tone-arrived", "tone-missed", "tone-hired", "tone-started", "tone-left"];
     const pass = detailBody.querySelector("#pass-card");
     for (const el of [card, pass].filter(Boolean)) {
       el.classList.remove(...tones);
-      el.classList.add(`tone-${interviewKey(draft.interviewStatus)}`);
+      el.classList.add(`tone-${interviewTone(draft)}`);
     }
   }
   if (interviewCard) paintInterview(interviewCard);
 
   function viewText(key) {
-    if (key === "interviewStatus") return interviewLabels[interviewKey(draft.interviewStatus)];
+    if (key === "interviewStatus") return interviewLabels[interviewTone(draft)];
     if (key === "hiredAt" || key === "contractEnd") return uzContractDate(draft[key]) || "—";
     if (key === "interviewAt" || key === "workStart") return prettyStamp(draft[key]) || "—";
     if (key === "phone" || key === "parentPhone") return formatPhone(draft[key]) || "—";
@@ -1708,6 +1735,10 @@ async function openDetail(id, silent = false) {
     card.querySelector(".edit-view").textContent = viewText(key);
     if (key === "hiredAt" || key === "contractTerm") paintContractEnd(true);
     if (key === "interviewStatus") paintInterview(card);
+    if (key === "interviewAt" && interviewCard) {
+      paintInterview(interviewCard);
+      interviewCard.querySelector(".edit-view").textContent = viewText("interviewStatus");
+    }
     const who = detailBody.querySelector("#who-ran");
     if (who) who.textContent = `Suhbat o‘tkazuvchi: ${staffMark(data.item.interviewerName) || "hali belgilanmagan"}`;
     const caller = detailBody.querySelector("#who-called");
@@ -2018,7 +2049,7 @@ function renderArchive() {
       const head = day !== lastDay ? `<h3 class="history-day arc-day">${esc(day)}</h3>` : "";
       lastDay = day;
       const person = splitName(item.fullName);
-      const tone = interviewKey(item.interviewStatus);
+      const tone = interviewTone(item);
       const initials = [person.surname, person.name].filter((p) => p && p !== "—").map((p) => p.charAt(0).toUpperCase()).join("");
       const photo = item.hasPhoto
         ? `<img class="arc-photo" src="/api/applications/${esc(item._id)}/photo" alt="" loading="lazy" />`
@@ -2334,7 +2365,7 @@ function renderSearchResults() {
   } else {
     searchResults.innerHTML = title + searchPicks
       .map((item, index) => {
-        const tone = interviewKey(item.interviewStatus);
+        const tone = interviewTone(item);
         const person = splitName(item.fullName);
         const initials = [person.surname, person.name].filter((p) => p && p !== "—").map((p) => p.charAt(0).toUpperCase()).join("");
         const photo = item.hasPhoto
