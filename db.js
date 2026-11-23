@@ -168,6 +168,8 @@ const studentContractSchema = new mongoose.Schema(
     jshshir: { type: String, default: "" },
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
+    // Shartnoma qaysi hujjat bilan: id (ID karta) | passport | birth (tug'ilganlik guvohnomasi)
+    docType: { type: String, default: "" },
     note: { type: String, default: "" },
     email: { type: String, default: "" },
     // Shartnoma (panelda to‘ldiriladi)
@@ -177,6 +179,7 @@ const studentContractSchema = new mongoose.Schema(
     contractMonths: { type: String, default: "" },
     contractPrice: { type: String, default: "" },
     contractTemplateId: { type: String, default: "" },
+    courseId: { type: String, default: "" },
     seenAt: { type: Date, default: null },
     passportFront: studentFile,
     passportBack: studentFile,
@@ -196,6 +199,20 @@ const studentContractSchema = new mongoose.Schema(
 studentContractSchema.index({ ownerToken: 1, createdAt: -1 });
 const StudentContract =
   mongoose.models.StudentContract || mongoose.model("StudentContract", studentContractSchema);
+
+// O‘quvchilar kurslari: botda tugma bo‘lib chiqadi, narxi va muddati shartnomaga tushadi
+const studentCourseSchema = new mongoose.Schema(
+  {
+    ownerToken: { type: String, required: true, index: true },
+    name: { type: String, default: "" },
+    contractName: { type: String, default: "" },
+    months: { type: String, default: "" },
+    price: { type: String, default: "" },
+    active: { type: Boolean, default: true },
+  },
+  { collection: "student_courses", timestamps: true },
+);
+const StudentCourse = mongoose.models.StudentCourse || mongoose.model("StudentCourse", studentCourseSchema);
 
 // Shartnoma shablonlari — panelga yuklangan Word (.docx) fayllar
 const contractTemplateSchema = new mongoose.Schema(
@@ -1293,6 +1310,7 @@ const STUDENT_TEXT_FIELDS = {
   address: 300,
   phone: 40,
   note: 2000,
+  docType: 10,
   email: 120,
   contractNumber: 40,
   contractDate: 10,
@@ -1300,6 +1318,7 @@ const STUDENT_TEXT_FIELDS = {
   contractMonths: 3,
   contractPrice: 15,
   contractTemplateId: 40,
+  courseId: 40,
 };
 
 function studentText(input) {
@@ -1308,8 +1327,10 @@ function studentText(input) {
     if (input[key] === undefined) continue;
     let value = String(input[key] ?? "").replace(key === "note" ? /[^\S\n]+/g : /\s+/g, " ").trim();
     if (key === "jshshir") value = value.replace(/\D/g, "");
-    if (key === "passportSeries") value = value.replace(/\s/g, "").toUpperCase();
+    if (key === "passportSeries") value = value.toUpperCase();
     if (key === "contractMonths" || key === "contractPrice") value = value.replace(/\D/g, "");
+    if (key === "docType" && !["id", "passport", "birth", ""].includes(value)) value = "";
+    if (key === "passportSeries" && /^[A-Z]{2}\d{7}$/.test(value.replace(/\s/g, ""))) value = value.replace(/\s/g, "");
     if (key === "contractDate" && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) value = "";
     out[key] = value.slice(0, max);
   }
@@ -1330,6 +1351,58 @@ async function nextStudentContractNumber() {
   return `${max + 1}/${year}`;
 }
 
+function cleanCourse(input = {}) {
+  const out = {};
+  if (input.name !== undefined) {
+    const name = String(input.name || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    out.name = name ? name.charAt(0).toLocaleUpperCase("uz") + name.slice(1) : name;
+  }
+  if (input.contractName !== undefined) out.contractName = String(input.contractName || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if (input.months !== undefined) out.months = String(input.months || "").replace(/\D/g, "").slice(0, 3);
+  if (input.price !== undefined) out.price = String(input.price || "").replace(/\D/g, "").slice(0, 13);
+  if (input.active !== undefined) out.active = Boolean(input.active);
+  return out;
+}
+
+export async function listStudentCourses({ activeOnly = false } = {}) {
+  const filter = { ownerToken: ownerToken() };
+  if (activeOnly) filter.active = true;
+  return StudentCourse.find(filter).sort({ name: 1 }).lean();
+}
+
+export async function createStudentCourse(input) {
+  const data = cleanCourse(input);
+  if (!data.name) {
+    const error = new Error("Kurs nomini yozing");
+    error.status = 400;
+    throw error;
+  }
+  const dup = await StudentCourse.findOne({ ownerToken: ownerToken(), name: new RegExp(`^${escapeRegex(data.name)}$`, "i") }).lean();
+  if (dup) {
+    const error = new Error("Bu nomdagi kurs allaqachon bor");
+    error.status = 409;
+    throw error;
+  }
+  const doc = await StudentCourse.create({ ownerToken: ownerToken(), active: true, ...data });
+  return doc.toObject();
+}
+
+export async function updateStudentCourse(id, input) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  const data = cleanCourse(input);
+  if (data.name === "") {
+    const error = new Error("Kurs nomini yozing");
+    error.status = 400;
+    throw error;
+  }
+  return StudentCourse.findOneAndUpdate({ _id: id, ownerToken: ownerToken() }, { $set: data }, { new: true }).lean();
+}
+
+export async function deleteStudentCourse(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return StudentCourse.findOneAndDelete({ _id: id, ownerToken: ownerToken() }).lean();
+}
+
 export async function saveStudentContract({ telegramUserId, username, answers }) {
   const doc = {
     ownerToken: ownerToken(),
@@ -1338,6 +1411,17 @@ export async function saveStudentContract({ telegramUserId, username, answers })
     ...studentText(answers),
     contractNumber: await nextStudentContractNumber(),
   };
+  // Botda ro‘yxatdan kurs tanlangan bo‘lsa — narxi, muddati va shartnomadagi nomi o‘zi qo‘yiladi
+  if (answers.courseId && mongoose.isValidObjectId(answers.courseId)) {
+    const course = await StudentCourse.findOne({ _id: answers.courseId, ownerToken: ownerToken() }).lean();
+    if (course) {
+      doc.courseId = String(course._id);
+      doc.course = course.name;
+      if (course.contractName) doc.contractCourse = course.contractName;
+      if (course.months) doc.contractMonths = course.months;
+      if (course.price) doc.contractPrice = course.price;
+    }
+  }
   for (const [slot, meta] of Object.entries(STUDENT_DOC_SLOTS)) {
     const file = answers[slot];
     if (!file?.fileId) continue;

@@ -41,6 +41,10 @@ import {
   deleteStudentContract,
   getStudentContractFile,
   getStudentContractFull,
+  listStudentCourses,
+  createStudentCourse,
+  updateStudentCourse,
+  deleteStudentCourse,
   addApplicationNote,
   deleteApplicationNote,
   getApplicationForCrm,
@@ -684,6 +688,39 @@ export async function startWeb() {
     const file = await getStudentContractFile(req.params.id, req.params.slot);
     if (!file) return res.status(404).end();
     sendStoredFile(res, file, req.query.download === "1" ? meta.label : "");
+  });
+
+  // O‘quvchilar kurslari (botda tugma, narxi shartnomaga)
+  app.get("/api/student-courses", requireAuth, async (req, res) => {
+    res.json({ items: await listStudentCourses() });
+  });
+
+  app.post("/api/student-courses", requireAuth, requireEdit, async (req, res) => {
+    try {
+      const item = await createStudentCourse(req.body || {});
+      await recordActivity({ actor: actorOf(req), action: "Kurs qo‘shdi", detail: item.name });
+      res.json({ item });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "Kurs saqlanmadi" });
+    }
+  });
+
+  app.patch("/api/student-courses/:id", requireAuth, requireEdit, async (req, res) => {
+    try {
+      const item = await updateStudentCourse(req.params.id, req.body || {});
+      if (!item) return res.status(404).json({ error: "Kurs topilmadi" });
+      await recordActivity({ actor: actorOf(req), action: "Kursni o‘zgartirdi", detail: item.name });
+      res.json({ item });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "Kurs saqlanmadi" });
+    }
+  });
+
+  app.delete("/api/student-courses/:id", requireAuth, requireEdit, async (req, res) => {
+    const item = await deleteStudentCourse(req.params.id);
+    if (!item) return res.status(404).json({ error: "Kurs topilmadi" });
+    await recordActivity({ actor: actorOf(req), action: "Kursni o‘chirdi", detail: item.name });
+    res.json({ ok: true });
   });
 
   // Shartnoma shablonlari (o‘z .docx faylingiz, ichida {FISH} kabi belgilar)

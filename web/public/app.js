@@ -2518,6 +2518,15 @@ const studentDetail = document.querySelector("#stu-detail");
 const studentSearch = document.querySelector("#stu-search");
 let studentItems = [];
 let contractTemplates = [];
+let studentCourses = [];
+
+async function loadStudentCourses() {
+  try {
+    const res = await fetch("/api/student-courses");
+    if (!res.ok) return;
+    studentCourses = (await res.json()).items || [];
+  } catch { /* kurslar kelmasa ham shartnoma qo‘lda to‘ldiriladi */ }
+}
 let templateTags = [];
 
 async function loadContractTemplates() {
@@ -2535,12 +2544,13 @@ const STUDENT_FIELDS = [
   ["course", "Kurs", "Ingliz tili"],
   ["birthday", "Tug‘ilgan sana", "KK.OO.YYYY"],
   ["phone", "Telefon", "+998 90 123 45 67"],
-  ["passportSeries", "Pasport seriyasi", "AD1234567"],
-  ["passportIssued", "Pasport berilgan sana", "KK.OO.YYYY"],
-  ["passportIssuer", "Pasport bergan organ", "IIV 8213"],
+  ["passportSeries", "Hujjat seriyasi va raqami", "AD1234567"],
+  ["passportIssued", "Hujjat berilgan sana", "KK.OO.YYYY"],
+  ["passportIssuer", "Hujjatni bergan organ", "IIV 8213"],
   ["jshshir", "JSHSHIR", "14 ta raqam"],
   ["address", "Manzil", "Doimiy yashash manzili", "span2"],
 ];
+const STUDENT_DOC_TYPES = { id: "🪪 ID karta", passport: "📘 Pasport", birth: "📄 Tug‘ilganlik guvohnomasi" };
 const STUDENT_DOCS = [
   ["passportFront", "Pasport oldi", "#0ea5e9"],
   ["passportBack", "Pasport orqasi", "#14b8a6"],
@@ -2614,7 +2624,10 @@ function renderStudents() {
               <h3>${esc(item.fullName || "O‘quvchi")}</h3>
               ${item.seenAt ? "" : `<span class="new-pill">Yangi</span>`}
             </div>
-            ${item.course ? `<span class="ac-role" style="--h:${positionHue(item.course)}">${esc(item.course)}</span>` : ""}
+            <div class="stu-tags">
+              ${item.course ? `<span class="ac-role" style="--h:${positionHue(item.course)}">${esc(item.course)}</span>` : ""}
+              ${item.docType ? `<span class="stu-doc-tag">${esc(STUDENT_DOC_TYPES[item.docType] || "")}</span>` : ""}
+            </div>
             <div class="arc-meta">
               <span><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.phone}</svg>${esc(formatPhone(item.phone) || "—")}</span>
               <span><svg viewBox="0 0 24 24" aria-hidden="true">${factIcons.birthday}</svg>${esc(item.birthday || "—")}</span>
@@ -2641,6 +2654,7 @@ async function openStudent(id) {
   if (!res.ok) return alert("O‘quvchi topilmadi");
   const { item } = await res.json();
   if (!contractTemplates.length) await loadContractTemplates();
+  await loadStudentCourses();
   const index = studentItems.findIndex((entry) => entry._id === id);
   if (index >= 0) studentItems[index] = item;
   setStudentBadge(studentItems);
@@ -2681,13 +2695,20 @@ function renderStudentDetail(item) {
         <div>
           <p class="eyebrow">O‘quvchi shartnomasi</p>
           <h2>${esc(item.fullName || "O‘quvchi")}</h2>
-          <p class="muted">Yuborgan: ${esc(formatDate(item.createdAt) || "—")}${item.username ? ` · @${esc(item.username)}` : ""}</p>
+          <p class="muted">Yuborgan: ${esc(formatDate(item.createdAt) || "—")}${item.username ? ` · @${esc(item.username)}` : ""}${item.docType ? ` · ${esc(STUDENT_DOC_TYPES[item.docType] || "")}` : ""}</p>
         </div>
       </div>
     </div>
     <div class="stu-docs">${docs}</div>
     <form class="stu-form" id="stu-form">
       ${fields}
+      <label class="stu-field">
+        <span>Hujjat turi</span>
+        <select name="docType" ${editable ? "" : "disabled"}>
+          <option value="">—</option>
+          ${Object.entries(STUDENT_DOC_TYPES).map(([value, label]) => `<option value="${value}" ${item.docType === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
+        </select>
+      </label>
       <label class="stu-field">
         <span>E-pochta (bo‘lsa)</span>
         <input name="email" value="${esc(item.email || "")}" placeholder="misol@gmail.com" ${editable ? "" : "readonly"} />
@@ -2717,6 +2738,15 @@ function renderStudentDetail(item) {
             <input type="hidden" name="contractDate" value="${esc(item.contractDate || todayIso())}" />
             <button type="button" class="stu-date" id="stu-date" ${editable ? "" : "disabled"}>${esc(uzContractDate(item.contractDate || todayIso()))}</button>
           </label>
+          ${studentCourses.length ? `
+          <label class="stu-field span2 stu-course-pick">
+            <span>Kurslardan tanlash (narx va muddat o‘zi qo‘yiladi)</span>
+            <input type="hidden" name="courseId" value="${esc(item.courseId || "")}" />
+            <select id="stu-course-pick" ${editable ? "" : "disabled"}>
+              <option value="">— tanlang —</option>
+              ${studentCourses.map((c) => `<option value="${esc(c._id)}" ${c._id === item.courseId ? "selected" : ""}>${esc(c.name)}${c.price ? ` — ${esc(formatPrice(c.price))} so‘m` : ""}${c.months ? `, ${esc(c.months)} oy` : ""}</option>`).join("")}
+            </select>
+          </label>` : ""}
           <label class="stu-field">
             <span>Kurs (shartnomada, kirillda)</span>
             <input name="contractCourse" list="stu-courses" value="${esc(item.contractCourse || courseToCyr(item.course))}" placeholder="Инглиз тили" ${editable ? "" : "readonly"} />
@@ -2746,6 +2776,17 @@ function renderStudentDetail(item) {
     </form>`;
   studentDetail.querySelector("#stu-back").addEventListener("click", showStudentList);
   const form = studentDetail.querySelector("#stu-form");
+  studentDetail.querySelector("#stu-course-pick")?.addEventListener("change", (event) => {
+    const course = studentCourses.find((c) => c._id === event.target.value);
+    if (!course) return;
+    form.contractCourse.value = course.contractName || courseToCyr(course.name);
+    if (course.months) form.contractMonths.value = course.months;
+    if (course.price) form.contractPrice.value = formatPrice(course.price);
+    if (form.course) form.course.value = course.name;
+    if (form.courseId) form.courseId.value = course._id;
+    paintWords();
+    studentDetail.querySelector("#stu-saved").textContent = "";
+  });
   const paintWords = () => {
     const price = String(form.contractPrice.value || "").replace(/\D/g, "");
     const months = String(form.contractMonths.value || "").replace(/\D/g, "");
@@ -2980,6 +3021,151 @@ function renderTemplates() {
     }
   });
 }
+
+// ============ Kurslar: botda tugma, narxi va muddati shartnomaga ============
+function courseRowHtml(course, editable) {
+  return `
+    <article class="course-row${course.active ? "" : " off"}" data-course="${esc(course._id)}">
+      <div class="course-main">
+        <h3>${esc(course.name)}${course.active ? "" : ` <em class="course-off">botda yashirin</em>`}</h3>
+        <p class="muted">Shartnomada: «${esc(course.contractName || courseToCyr(course.name))}»</p>
+      </div>
+      <div class="course-num"><span>Muddati</span><b>${course.months ? `${esc(course.months)} oy` : "—"}</b></div>
+      <div class="course-num"><span>Umumiy summa</span><b>${course.price ? `${esc(formatPrice(course.price))} so‘m` : "—"}</b></div>
+      ${editable ? `
+      <div class="course-actions">
+        <button type="button" class="ghost" data-course-edit="${esc(course._id)}">Tahrirlash</button>
+        <button type="button" class="arc-btn purge" data-course-del="${esc(course._id)}" title="O‘chirish" aria-label="O‘chirish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></button>
+      </div>` : ""}
+    </article>`;
+}
+
+function courseFormHtml(course = {}) {
+  return `
+    <form class="course-form" data-course-form="${esc(course._id || "")}">
+      <label class="stu-field">
+        <span>Kurs nomi (botda shunday ko‘rinadi)</span>
+        <input name="name" value="${esc(course.name || "")}" placeholder="Ingliz tili" maxlength="80" required />
+      </label>
+      <label class="stu-field">
+        <span>Shartnomadagi nomi (kirillda)</span>
+        <input name="contractName" value="${esc(course.contractName || "")}" placeholder="Инглиз тили" maxlength="120" />
+      </label>
+      <label class="stu-field">
+        <span>Muddati (oy)</span>
+        <input name="months" inputmode="numeric" value="${esc(course.months || "")}" placeholder="3" maxlength="3" />
+      </label>
+      <label class="stu-field">
+        <span>Umumiy summa (so‘m)</span>
+        <input name="price" inputmode="numeric" value="${esc(formatPrice(course.price || ""))}" placeholder="1 800 000" />
+      </label>
+      <label class="course-active"><input type="checkbox" name="active" ${course.active === false ? "" : "checked"} /> Botda ko‘rinsin</label>
+      <p class="course-words" data-course-words></p>
+      <div class="course-form-actions">
+        ${course._id ? `<button type="button" class="ghost" data-course-cancel>Bekor</button>` : ""}
+        <button type="submit" class="stu-make">${course._id ? "Saqlash" : "Kurs qo‘shish"}</button>
+      </div>
+    </form>`;
+}
+
+function wireCourseForm(formEl) {
+  const words = formEl.querySelector("[data-course-words]");
+  const paint = () => {
+    const price = formEl.price.value.replace(/\D/g, "");
+    const months = formEl.months.value.replace(/\D/g, "");
+    words.textContent = price || months
+      ? `Shartnomada: ${months ? `${months} (${numberToUzWords(months)}) ой` : "— ой"} · ${price ? `${formatPrice(price)} (${numberToUzWords(price)}) сўм` : "— сўм"}`
+      : "";
+  };
+  formEl.name.addEventListener("input", () => {
+    if (!formEl.contractName.dataset.touched) formEl.contractName.placeholder = courseToCyr(formEl.name.value) || "Инглиз тили";
+  });
+  formEl.contractName.addEventListener("input", () => { formEl.contractName.dataset.touched = "1"; });
+  formEl.price.addEventListener("input", () => {
+    const digits = formEl.price.value.replace(/\D/g, "").slice(0, 13);
+    formEl.price.value = digits ? formatPrice(digits) : "";
+    paint();
+  });
+  formEl.months.addEventListener("input", () => {
+    formEl.months.value = formEl.months.value.replace(/\D/g, "").slice(0, 3);
+    paint();
+  });
+  paint();
+  formEl.querySelector("[data-course-cancel]")?.addEventListener("click", renderCourses);
+  formEl.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const id = formEl.dataset.courseForm;
+    const body = {
+      name: formEl.name.value.trim(),
+      contractName: formEl.contractName.value.trim() || courseToCyr(formEl.name.value.trim()),
+      months: formEl.months.value,
+      price: formEl.price.value,
+      active: formEl.active.checked,
+    };
+    const res = await fetch(id ? `/api/student-courses/${encodeURIComponent(id)}` : "/api/student-courses", {
+      method: id ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return alert(data.error || "Saqlanmadi");
+    await loadStudentCourses();
+    renderCourses();
+  });
+}
+
+function renderCourses() {
+  const editable = canChange();
+  studentsDialog.querySelector(".arc-head").classList.add("hidden");
+  studentList.classList.add("hidden");
+  studentDetail.classList.remove("hidden");
+  studentDetail.innerHTML = `
+    <div class="stu-detail-head">
+      <button type="button" class="arc-back" id="course-back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg>Ro‘yxatga qaytish</button>
+      <div class="stu-detail-title">
+        <span class="dialog-ico stu-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg></span>
+        <div>
+          <p class="eyebrow">O‘quvchilar shartnomasi</p>
+          <h2>Kurslar <span class="badge">${studentCourses.length} ta</span></h2>
+          <p class="muted">Bu kurslar botda tugma bo‘lib chiqadi. O‘quvchi tanlasa, summa va muddat shartnomaga o‘zi tushadi.</p>
+        </div>
+      </div>
+    </div>
+    ${editable ? `<section class="course-new"><h3>Yangi kurs</h3>${courseFormHtml()}</section>` : ""}
+    <section class="course-list" id="course-list">
+      ${studentCourses.length ? studentCourses.map((c) => courseRowHtml(c, editable)).join("") : `<div class="empty tpl-empty"><strong>Hali kurs qo‘shilmagan</strong><p>Kurs qo‘shmaguningizcha botda o‘quvchi kurs nomini o‘zi yozadi.</p></div>`}
+    </section>`;
+  studentDetail.querySelector("#course-back").addEventListener("click", showStudentList);
+  studentDetail.querySelectorAll("[data-course-form]").forEach(wireCourseForm);
+  const list = studentDetail.querySelector("#course-list");
+  list.addEventListener("click", async (event) => {
+    const edit = event.target.closest("[data-course-edit]");
+    if (edit) {
+      const course = studentCourses.find((c) => c._id === edit.dataset.courseEdit);
+      const row = edit.closest(".course-row");
+      row.outerHTML = `<div class="course-row editing">${courseFormHtml(course)}</div>`;
+      wireCourseForm(list.querySelector(`[data-course-form="${CSS.escape(course._id)}"]`));
+      return;
+    }
+    const del = event.target.closest("[data-course-del]");
+    if (del) {
+      const course = studentCourses.find((c) => c._id === del.dataset.courseDel);
+      if (!confirm(`«${course?.name || "Kurs"}» o‘chirilsinmi? Botda endi ko‘rinmaydi (avval tuzilgan shartnomalar o‘zgarmaydi).`)) return;
+      const res = await fetch(`/api/student-courses/${encodeURIComponent(del.dataset.courseDel)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return alert(data.error || "O‘chirilmadi");
+      }
+      await loadStudentCourses();
+      renderCourses();
+    }
+  });
+}
+
+document.querySelector("#open-courses").addEventListener("click", async () => {
+  await loadStudentCourses();
+  renderCourses();
+});
 
 document.querySelector("#open-templates").addEventListener("click", async () => {
   await loadContractTemplates();

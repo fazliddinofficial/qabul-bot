@@ -17,7 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=33" />
+    <link rel="stylesheet" href="/styles.css?v=34" />
   </head>
   <body>
     <section id="login-view" class="login-view hidden">
@@ -347,11 +347,16 @@
             <h2>O‘quvchilar shartnomasi <span class="badge" id="stu-count">0 ta</span></h2>
             <p class="muted">Bot orqali «🎓 O‘quvchi shartnomasi» tugmasidan keladi</p>
           </div>
-          <label class="search arc-search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-            <input id="stu-search" type="search" placeholder="Qidirish: ism, telefon, kurs, JSHSHIR" />
-          </label>
-          <button type="button" class="ghost tpl-open" id="open-templates"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Shablonlar</button>
+          <div class="stu-head-tools">
+            <label class="search arc-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input id="stu-search" type="search" placeholder="Qidirish: ism, telefon, kurs, JSHSHIR" />
+            </label>
+            <div class="stu-head-btns">
+              <button type="button" class="ghost tpl-open" id="open-courses"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 9 10-5 10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/></svg>Kurslar</button>
+              <button type="button" class="ghost tpl-open" id="open-templates"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>Shablonlar</button>
+            </div>
+          </div>
         </header>
         <section id="stu-list" class="arc-list"></section>
         <section id="stu-detail" class="stu-detail hidden"></section>
@@ -378,6 +383,6 @@
       <div id="detail-body"></div>
     </dialog>
 
-    <script type="module" src="/app.js?v=33"></script>
+    <script type="module" src="/app.js?v=34"></script>
   </body>
 </html>

@@ -2,7 +2,7 @@
 // Shablon ichida {FISH}, {KURS}, {SUMMA_SOZ} kabi belgilar yoziladi — ular almashtiriladi.
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import { numberToUzWords, cyrDate, courseToCyr, formatPrice } from "./public/student-contract.js";
+import { numberToUzWords, cyrDate, courseToCyr, formatPrice, docLabelCyr } from "./public/student-contract.js";
 
 export const TEMPLATE_TAGS = [
   ["RAQAM", "Shartnoma raqami", "1/2026"],
@@ -10,7 +10,8 @@ export const TEMPLATE_TAGS = [
   ["SANA_RAQAM", "Shartnoma sanasi (raqamda)", "23.11.2026"],
   ["FISH", "O‘quvchining F.I.Sh", "Karimov Sardor Aliyevich"],
   ["TUGILGAN_SANA", "Tug‘ilgan sana", "12.03.2006"],
-  ["PASPORT", "Pasport/ID seriya va raqami", "AB7654321"],
+  ["HUJJAT", "Hujjat turi (kirill)", "ID карта"],
+  ["PASPORT", "Hujjat seriyasi va raqami", "AB7654321"],
   ["PASPORT_BERILGAN", "Pasport berilgan sana", "01.09.2022"],
   ["PASPORT_BERGAN", "Pasport bergan organ", "Jizzax IIB"],
   ["JSHSHIR", "JSHSHIR", "30603061234567"],
@@ -47,6 +48,7 @@ export function templateValues(item) {
     SANA_RAQAM: dottedDate(item.contractDate),
     FISH: item.fullName || "",
     TUGILGAN_SANA: item.birthday || "",
+    HUJJAT: docLabelCyr(item.docType),
     PASPORT: item.passportSeries || "",
     PASPORT_BERILGAN: item.passportIssued || "",
     PASPORT_BERGAN: item.passportIssuer || "",

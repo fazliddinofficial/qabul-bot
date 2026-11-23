@@ -9,7 +9,7 @@ import {
   WORK_SHIFTS,
   isOwnContact,
 } from "./questions.js";
-import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission, saveStudentContract } from "./db.js";
+import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission, saveStudentContract, listStudentCourses } from "./db.js";
 import { registerContractFlow } from "./contract.js";
 import { startWeb } from "./web/server.js";
 import { CronosExpression, CronosTask } from "cronosjs";
@@ -268,6 +268,8 @@ const handleContractMessage = registerContractFlow(bot, {
   sessions,
   ack,
   saveContract: { staff: saveContractSubmission, student: saveStudentContract },
+  listCourses: async () =>
+    (await listStudentCourses({ activeOnly: true })).map((course) => ({ id: String(course._id), name: course.name })),
   notify: {
     staff: async (answers, result) => {
       if (!CHANNEL_OR_GROUP_TOKEN) return;
