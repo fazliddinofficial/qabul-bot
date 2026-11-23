@@ -43,6 +43,8 @@ import {
   getStudentContractFull,
   addApplicationNote,
   deleteApplicationNote,
+  getApplicationForCrm,
+  setCrmTransfer,
   listContractTemplates,
   createContractTemplate,
   getContractTemplateFile,
@@ -50,6 +52,7 @@ import {
 } from "../db.js";
 import { TEMPLATE_TAGS, inspectTemplate, fillTemplate } from "./contract-templates.js";
 import { verifyHrToken, SsoError } from "./sso.js";
+import { crmCall, crmWebBase, buildImportPayload, CrmError } from "./crm-link.js";
 import { ensureSsoCeo } from "../db.js";
 
 const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -586,6 +589,54 @@ export async function startWeb() {
     } catch (error) {
       res.status(error.status || 500).json({ error: error.message || "Izoh o‘chirilmadi" });
     }
+  });
+
+  // metafor’ga o‘tkazish (faqat admin): filiallar va lavozimlar ro‘yxati
+  app.get("/api/crm/options", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      res.json({ ...(await crmCall("/hr-link/options", {})), web: crmWebBase() });
+    } catch (error) {
+      res.status(error instanceof CrmError ? error.status : 500).json({ error: error.message || "metafor javob bermadi" });
+    }
+  });
+
+  app.post("/api/applications/:id/crm-transfer", requireAuth, requireAdmin, async (req, res) => {
+    const item = await getApplicationForCrm(req.params.id);
+    if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
+    if (item.crmTransfer?.id) {
+      return res.status(409).json({ error: "Bu nomzod metafor’ga allaqachon o‘tkazilgan", item: item.crmTransfer });
+    }
+    const choice = req.body || {};
+    let photo;
+    if (choice.kind !== "employee" && item.hasPhoto) {
+      const file = await getApplicationPhoto(req.params.id).catch(() => null);
+      // metafor rasmni matn (data URL) ko‘rinishida saqlaydi, 1,5 MB gacha
+      if (file?.data && file.data.length <= 1_100_000) {
+        photo = `data:${file.contentType || "image/jpeg"};base64,${file.data.toString("base64")}`;
+      }
+    }
+    let created;
+    try {
+      created = await crmCall("/hr-link/import", buildImportPayload(item, choice, photo));
+    } catch (error) {
+      await recordActivity({ actor: actorOf(req), action: "metafor’ga o‘tkazib bo‘lmadi", detail: `${item.fullName || "Ariza"}: ${error.message}` });
+      return res.status(error instanceof CrmError ? error.status : 500).json({ error: error.message || "O‘tkazib bo‘lmadi" });
+    }
+    const actor = actorOf(req);
+    const transfer = {
+      kind: created.kind,
+      id: created.id,
+      path: created.path,
+      at: new Date(),
+      byName: [actor?.surname, actor?.name].filter(Boolean).join(" ") || actor?.username || "",
+    };
+    await setCrmTransfer(req.params.id, transfer);
+    await recordActivity({
+      actor,
+      action: "metafor’ga o‘tkazdi",
+      detail: `${item.fullName || "Ariza"} → ${created.kind === "teacher" ? "o‘qituvchi" : "xodim"}`,
+    });
+    res.json({ transfer, url: `${crmWebBase()}${created.path}` });
   });
 
   app.get("/api/applications/:id/photo", requireAuth, async (req, res) => {

@@ -840,6 +840,180 @@ function setupSalaryEditor(card, value) {
   focusFirst();
 }
 
+// ============ metafor’ga o‘tkazish (ishga olinganda) ============
+const CRM_WEB = "https://metafor.uz";
+const crmArrow = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
+
+function crmButtonHtml(item) {
+  if (item.crmTransfer?.id) {
+    const kind = item.crmTransfer.kind === "teacher" ? "o‘qituvchi" : "xodim";
+    return `<a class="crm-launch done" href="${CRM_WEB}${esc(item.crmTransfer.path || "")}" target="_blank" rel="noopener" title="metafor’da ${kind} sifatida bor — ochish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4 10-10"/></svg>metafor’da</a>`;
+  }
+  if (currentUser?.role !== "admin") return "";
+  return `<button type="button" class="crm-launch" id="open-crm" title="Ishga olingan xodimni metafor’ga o‘tkazish">metafor’ga ${crmArrow}</button>`;
+}
+
+function guessTeacher(item) {
+  return /o[‘'’ʻ`]?qituvchi/i.test(item.position || "") || !/admin|manager|menejer|smm|buxgalter/i.test(item.position || "");
+}
+
+function crmModalHtml(item, options) {
+  const teacher = guessTeacher(item);
+  const salary = parseAgreedSalary(item.agreedSalary);
+  const salaryMode = !salary.fix && salary.pct ? "percent" : "fixed";
+  const salaryValue = salaryMode === "percent" ? salary.pct : salary.fix ? Number(salary.fix).toLocaleString("ru-RU") : "";
+  const subject = String(item.position || "").replace(/\s*o[‘'’ʻ`]?qituvchisi\s*$/i, "").trim();
+  const position = String(item.position || "").toLowerCase();
+  const role = options.roles.find((r) => position && (r.name.toLowerCase().includes(position) || position.includes(r.name.toLowerCase())));
+  const person = splitName(item.fullName);
+  const sends = [
+    ["Familiya, ism", `${person.surname} ${person.name}`],
+    ["Telefon", formatPhone(item.phone)],
+    ["Qo‘shimcha telefon", formatPhone(item.parentPhone)],
+    ["Tug‘ilgan sana", item.birthday],
+    ["Manzil", item.address],
+    ["O‘qigan joyi", [item.institution, item.graduationYear].filter(Boolean).join(", ")],
+    ["Rasm", item.hasPhoto ? "bor (o‘qituvchi kartasiga)" : ""],
+    ["Qolganlari (izohga)", "otasining ismi, ma’lumot, til, oylik, ish vaqti, oldingi ish, pasport, ball, izohlar"],
+  ].filter(([, value]) => value && String(value).trim() && String(value).trim() !== "—");
+  return `
+    <div class="crm-modal" id="crm-modal" role="dialog" aria-label="metafor’ga o‘tkazish">
+      <form class="crm-box" id="crm-form">
+        <div class="crm-head">
+          <span class="crm-ico">${crmArrow}</span>
+          <div>
+            <h3>metafor’ga o‘tkazish</h3>
+            <p class="muted">${esc(item.fullName || "")} — ishga olingan xodim sifatida metafor’ga qo‘shiladi</p>
+          </div>
+        </div>
+        <div class="crm-seg" role="radiogroup">
+          <label><input type="radio" name="kind" value="teacher" ${teacher ? "checked" : ""} /><span>O‘qituvchilar bo‘limiga</span></label>
+          <label><input type="radio" name="kind" value="employee" ${teacher ? "" : "checked"} /><span>Xodimlar bo‘limiga</span></label>
+        </div>
+        <div class="crm-grid">
+          <label class="stu-field">
+            <span>Filial</span>
+            <select name="branchId">${options.branches.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join("")}</select>
+          </label>
+          <label class="stu-field crm-only-teacher">
+            <span>Fan / mutaxassislik</span>
+            <input name="specialization" value="${esc(subject)}" placeholder="Ingliz tili" maxlength="80" />
+          </label>
+          <label class="stu-field crm-only-employee">
+            <span>Lavozim</span>
+            <select name="roleId">
+              <option value="">— tanlang —</option>
+              ${options.roles.map((r) => `<option value="${esc(r.id)}" ${role?.id === r.id ? "selected" : ""}>${esc(r.name)}</option>`).join("")}
+            </select>
+          </label>
+          <label class="stu-field">
+            <span>Oylik</span>
+            <div class="crm-salary">
+              <select name="salaryMode">
+                <option value="fixed" ${salaryMode === "fixed" ? "selected" : ""}>Fiks, so‘m</option>
+                <option value="percent" ${salaryMode === "percent" ? "selected" : ""}>Foiz, %</option>
+              </select>
+              <input name="salaryAmount" inputmode="numeric" value="${esc(salaryValue)}" placeholder="${salaryMode === "percent" ? "30" : "3 000 000"}" />
+            </div>
+          </label>
+          <label class="stu-field">
+            <span>Kirish paroli (ixtiyoriy)</span>
+            <input name="password" autocomplete="new-password" minlength="4" maxlength="128" placeholder="Keyin metafor’da ham qo‘yish mumkin" />
+          </label>
+        </div>
+        <div class="crm-sends">
+          <b>Nimalar o‘tadi</b>
+          <ul>${sends.map(([k, v]) => `<li><span>${esc(k)}</span><em>${esc(v)}</em></li>`).join("")}</ul>
+        </div>
+        <p class="crm-msg" id="crm-msg"></p>
+        <div class="crm-actions">
+          <button type="button" class="ghost" id="crm-cancel">Bekor</button>
+          <button type="submit" class="crm-go" id="crm-go">O‘tkazish ${crmArrow}</button>
+        </div>
+      </form>
+    </div>`;
+}
+
+function wireCrmButton(item) {
+  const open = detailBody.querySelector("#open-crm");
+  if (!open) return;
+  open.addEventListener("click", async () => {
+    open.disabled = true;
+    const res = await fetch("/api/crm/options");
+    open.disabled = false;
+    const options = await res.json().catch(() => ({}));
+    if (!res.ok) return alert(options.error || "metafor bilan bog‘lanib bo‘lmadi");
+    detailBody.querySelector("#crm-modal")?.remove();
+    detailBody.insertAdjacentHTML("beforeend", crmModalHtml(item, { branches: options.branches || [], roles: options.roles || [] }));
+    const modal = detailBody.querySelector("#crm-modal");
+    const form = modal.querySelector("#crm-form");
+    const msg = modal.querySelector("#crm-msg");
+    const paintKind = () => {
+      const teacher = form.kind.value === "teacher";
+      modal.classList.toggle("is-teacher", teacher);
+      modal.classList.toggle("is-employee", !teacher);
+    };
+    paintKind();
+    form.querySelectorAll('input[name="kind"]').forEach((radio) => radio.addEventListener("change", paintKind));
+    form.salaryAmount.addEventListener("input", () => {
+      if (form.salaryMode.value === "percent") return;
+      const digits = form.salaryAmount.value.replace(/\D/g, "").slice(0, 12);
+      form.salaryAmount.value = digits ? Number(digits).toLocaleString("ru-RU") : "";
+    });
+    const close = () => modal.remove();
+    modal.querySelector("#crm-cancel").addEventListener("click", close);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) close();
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const body = Object.fromEntries(new FormData(form));
+      if (body.kind === "employee" && !body.roleId) {
+        msg.textContent = "Xodim uchun lavozimni tanlang";
+        msg.className = "crm-msg bad";
+        return;
+      }
+      if (body.password && body.password.length < 4) {
+        msg.textContent = "Parol kamida 4 belgi bo‘lsin (yoki bo‘sh qoldiring)";
+        msg.className = "crm-msg bad";
+        return;
+      }
+      const go = form.querySelector("#crm-go");
+      go.disabled = true;
+      msg.textContent = "O‘tkazilmoqda...";
+      msg.className = "crm-msg";
+      const res = await fetch(`/api/applications/${encodeURIComponent(item._id)}/crm-transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      go.disabled = false;
+      if (!res.ok) {
+        msg.textContent = data.error || "O‘tkazib bo‘lmadi";
+        msg.className = "crm-msg bad";
+        return;
+      }
+      item.crmTransfer = data.transfer;
+      const stored = allItems.find((entry) => entry._id === item._id);
+      if (stored) stored.crmTransfer = data.transfer;
+      const holder = detailBody.querySelector("#open-crm");
+      if (holder) holder.outerHTML = crmButtonHtml(item);
+      form.innerHTML = `
+        <div class="crm-done">
+          <span class="crm-done-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4 10-10"/></svg></span>
+          <h3>metafor’ga qo‘shildi</h3>
+          <p class="muted">${esc(item.fullName || "")} — ${data.transfer.kind === "teacher" ? "O‘qituvchilar" : "Xodimlar"} bo‘limida</p>
+          <div class="crm-actions">
+            <button type="button" class="ghost" id="crm-close">Yopish</button>
+            <a class="crm-go" href="${esc(data.url)}" target="_blank" rel="noopener">metafor’da ochish ${crmArrow}</a>
+          </div>
+        </div>`;
+      form.querySelector("#crm-close").addEventListener("click", close);
+    });
+  });
+}
+
 // ============ Izohlar: har biri alohida, vaqti va muallifi bilan ============
 function noteEntries(item) {
   const list = (item.notes || []).map((note) => ({ ...note, legacy: false }));
@@ -1730,7 +1904,10 @@ async function openDetail(id, silent = false) {
             <div class="pass-person"><i class="pi-ico" style="--fc:#3b82f6"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.phone}</svg></i><p class="pass-interviewer" id="who-called">Suhbatga chaqirgan: ${esc(staffMark(item.callerName) || "hali belgilanmagan")}</p></div>
             <div class="pass-person"><i class="pi-ico" style="--fc:#8b5cf6"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.user}</svg></i><p class="pass-interviewer" id="who-ran">Suhbat o‘tkazuvchi: ${esc(staffMark(item.interviewerName) || "hali belgilanmagan")}</p></div>
           </div>
-          <button type="button" class="contract-launch" id="open-contract"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg>Shartnomani ko‘rish</button>
+          <div class="launch-row">
+            <button type="button" class="contract-launch" id="open-contract"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg>Shartnomani ko‘rish</button>
+            ${crmButtonHtml(item)}
+          </div>
           ${editCard(
             "interviewStatus",
             "Suhbat",
@@ -2063,6 +2240,7 @@ async function openDetail(id, silent = false) {
   });
 
   wireNotesCard(item);
+  wireCrmButton(item);
 
   detailBody.querySelectorAll(".doc-slot").forEach((slot) => {
     const kind = slot.dataset.doc;

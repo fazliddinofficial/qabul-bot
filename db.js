@@ -59,6 +59,14 @@ const applicationSchema = new mongoose.Schema(
       default: [],
     },
     agreedSalary: { type: String, default: "" },
+    // metafor (CRM) ga o‘tkazilgani: o‘qituvchi yoki xodim kartasi
+    crmTransfer: {
+      kind: { type: String, default: "" },
+      id: { type: String, default: "" },
+      path: { type: String, default: "" },
+      at: { type: Date, default: null },
+      byName: { type: String, default: "" },
+    },
     interviewAt: { type: String, default: "" },
     workStart: { type: String, default: "" },
     passportSeries: { type: String, default: "" },
@@ -1112,6 +1120,22 @@ export async function deleteApplicationNote(id, noteId, actor) {
     .select("fullName notes note")
     .lean();
   return { item: updated, removed: target };
+}
+
+export async function getApplicationForCrm(id) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return Application.findOne({ _id: id, ownerToken: ownerToken() }).select(withoutFiles).lean();
+}
+
+export async function setCrmTransfer(id, transfer) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  return Application.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken() },
+    { $set: { crmTransfer: transfer } },
+    { new: true },
+  )
+    .select("fullName crmTransfer")
+    .lean();
 }
 
 export async function setApplicationFavorite(id, favorite) {
