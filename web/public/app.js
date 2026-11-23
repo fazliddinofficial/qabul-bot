@@ -166,7 +166,9 @@ function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
   pop.className = "dtp";
   pop.setAttribute("role", "dialog");
   pop.setAttribute("aria-label", "Sana va vaqtni tanlang");
-  document.body.appendChild(pop);
+  // Modal <dialog> ichida bo‘lsa, oynani o‘sha dialogga qo‘shamiz — aks holda dialog orqasida qolib ko‘rinmaydi
+  const host = anchor.closest("dialog[open]") || document.body;
+  host.appendChild(pop);
 
   function summary() {
     if (!selDate) return "Sana tanlanmagan";
@@ -287,10 +289,15 @@ function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
     closeDateTimePicker(true);
   };
   const onKey = (event) => {
-    if (event.key === "Escape") closeDateTimePicker(true);
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeDateTimePicker(true);
   };
+  const onHostClose = () => closeDateTimePicker(true);
   document.addEventListener("pointerdown", outside, true);
-  document.addEventListener("keydown", onKey);
+  document.addEventListener("keydown", onKey, true);
+  if (host !== document.body) host.addEventListener("close", onHostClose);
   window.addEventListener("resize", place);
   window.addEventListener("scroll", place, true);
   activeDtp = {
@@ -298,7 +305,8 @@ function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
     onClose,
     cleanup() {
       document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
+      host.removeEventListener("close", onHostClose);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     },
