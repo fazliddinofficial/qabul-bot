@@ -193,7 +193,7 @@ function nameish(line) {
 
 const LABEL_WORDS = /SURNAME|GIVEN|NAME|PATRONYMIC|FAMILIYA|\bISMI?\b|OTASINING|DATE|SANA|NATIONALITY|FUQARO|JINSI/;
 // Yorliq qatoridagi yorliq so'zlari (OTASINING ISMI / PATRONYMIC) — qiymat deb olinmasin
-const LABEL_STRIP = /\b(OTASINING|ISMI?|PATRONYMIC|FAMILIYASI?|SURNAME|GIVEN|NAMES?|I)\b/gi;
+const LABEL_STRIP = /\b(OTASINING|[I1]{0,2}[S5][MW][I1!]?|PATRONYMIC|FAMILIYASI?|SURNAME|GIVEN|NAMES?|I)\b/gi;
 const VALUE_RE = /[A-ZʻʼО'‘’`]{2,}(?:[ -][A-ZʻʼО'‘’`]{2,})*/;
 
 function labelValue(rawLines, labelRe) {
@@ -228,6 +228,30 @@ function labelValueAt(rawLines, i, labelRe) {
     }
   }
   return "";
+}
+
+// Otasining ismi: barcha o'qishlardan "...O'G'LI / QIZI / ...VICH / ...VNA" bilan tugaganini tanlaymiz,
+// qo'shimchadan keyingi shovqin ("O'G'LI EL") kesiladi; qo'shimchasizlardan esa eng ko'p takrorlangani
+function patronymicShape(raw) {
+  const words = String(raw || "").toUpperCase().replace(/[‘’ʻ`]/g, "'").replace(/[^A-Z' ]/g, " ").split(/\s+/).filter(Boolean);
+  const end = words.findIndex((w, i) => i > 0 && (suffixFix(w) || /(OVICH|EVICH|OVNA|EVNA)$/.test(w)));
+  if (end > 0) return { value: words.slice(0, end + 1).join(" "), score: 2 };
+  const long = words.filter((w) => w.length >= 4);
+  return { value: long.join(" "), score: long.length ? 1 : 0 };
+}
+
+function pickPatronymic(lines) {
+  const raw = labelValues(lines, /(otasining\b|patronym)/i);
+  for (const l of lines) if (/\b(QIZI|O['‘’ʻ`]?G['‘’ʻ`]?LI|UGLI)\b/i.test(l)) raw.push(nameish(l).toUpperCase());
+  const votes = new Map();
+  for (const r of raw) {
+    const { value, score } = patronymicShape(r);
+    if (!score) continue;
+    const cur = votes.get(value) || { score, n: 0 };
+    cur.n += 1;
+    votes.set(value, cur);
+  }
+  return [...votes.entries()].sort((a, b) => b[1].score - a[1].score || b[1].n - a[1].n)[0]?.[0] || "";
 }
 
 // Otasining ismi oxiri yopiq ro'yxat: OCR xatolarini to'g'rilaymiz (QIZL, QIZZI → qizi; OGLI, 0G'LI → o'g'li)
@@ -301,17 +325,24 @@ function dateByLabel(lines, ISSUE_LABEL) {
 
 // Pasport daftarchasi: "KIM TOMONIDAN BERILGAN" ostida organ nomi bir necha qatorda bo'ladi:
 // "JIZZAX VILOYATI ZOMIN" / "TUMANI IIB" → "Jizzax viloyati Zomin tumani IIB"
-const KIM_LABEL = /(k\w{0,3}\s*tomonidan|tomonidan\s*berilgan)/i;
+// OCR "TOMONIDAH", "T0MONIDAN", "KIMTOMONIDANBERILGAN" deb ham o'qiydi
+const KIM_LABEL = /(k\w{0,3}\s*t[o0]m[o0]n\w{3,4}|t[o0]m[o0]nida\w\s*ber\w*)/i;
 const ISSUER_END = /^(IIB|IIV|IIBB|IIIB|IIO|FHDYO|BO'LIMI|BOLIMI|VAZIRLIGI|BOSHQARMASI|IIVB)$/;
 // Yon ustundan aralashib qoladigan qiymat/yorliq so'zlari
-const ISSUER_SKIP = /^([O0]'?ZBEK|ERKAK|AYOL|MILLATI?|KIM|TOMONIDAN|BERILGAN|KIMTOMONIDANBERILGAN|RESPUBLIKASI|PASPORT|PASSPORT)$/;
+const ISSUER_SKIP = /^(([O0]'?)?ZBEK|ERKAK|AYOL|MILLATI?|KIM|TOMONIDAN|B?ERILGAN|KIMTOMONIDANBERILGAN|RESPUBLIKASI|PASPORT|PASSPORT)$/;
 const ISSUER_STOP = /(SANAS|JOY[I1!}]?\b|DATE|SEX|JINSI|NAME|SURNAME|FAMILIYA|SIGNATURE|IMZO|MUDDAT)/i;
 
 function issuerWords(line) {
-  // Faqat KATTA harfli so'zlar: organ nomi katta harfda bosiladi, fon "shovqini" esa odatda kichik harf bo'lib o'qiladi
-  return (String(line).replace(/[‘’ʻ`]/g, "'").match(/[A-Z][A-Z']+\.?/g) || [])
+  // Faqat KATTA harfli so'zlar: organ nomi katta harfda bosiladi, fon "shovqini" esa odatda kichik harf bo'lib o'qiladi.
+  // IIB/IIV ko'pincha "118B", "I1B", "IIV" kabi o'qiladi — tiklaymiz
+  const fixed = String(line)
+    .replace(/[‘’ʻ`]/g, "'")
+    .replace(/(^|[^A-Z0-9])[I1l|]{1,3}[8B]{1,2}(?![A-Z0-9])/g, "$1IIB")
+    .replace(/(^|[^A-Z0-9])[I1l|]{1,3}V(?![A-Z0-9])/g, "$1IIV");
+  // 3 harfli tasodifiy "so'zlar" (LIC, CIC) shovqin bo'ladi — faqat ma'lum qisqartmalar qoladi
+  return (fixed.match(/[A-Z][A-Z']+\.?/g) || [])
     .map((w) => w.replace(/\.$/, ""))
-    .filter((w) => (w.length >= 3 || w === "SH") && !ISSUER_SKIP.test(w));
+    .filter((w) => (w.length >= 4 || w === "SH" || ISSUER_END.test(w)) && !ISSUER_SKIP.test(w));
 }
 
 function issuerAfterKim(lines) {
@@ -444,6 +475,14 @@ export async function readDocument({ docType, front, back }) {
       // Matn (yorliqlar, JSHSHIR, bergan organ) — yuqori qismdan bir necha xil ishlov bilan
       const full = await recognizeTopVariants(img, docType);
       texts.push(full);
+      // OCR natijasi rasm o'lchamiga sezgir: muhim maydon topilmasa — boshqa o'lchamda yana bir bor o'qiymiz
+      if (docType === "passport") {
+        const lines1 = full.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        if (!issuerAfterKim(lines1) || !pickPatronymic(lines1)) {
+          const w = (await sharp(img).metadata()).width || 1800;
+          texts.push(await recognizeTopVariants(await sharp(img).resize({ width: w > 1500 ? 1250 : 2200 }).png().toBuffer(), docType));
+        }
+      }
       // MRZ ni bir necha sozlamada o'qiymiz; har bir maydon tekshiruv raqami bilan tasdiqlanadi, natijalar birlashtiriladi
       const zones = [
         await recognize(img, { mrzOnly: true, width: 1400, boost: false }),
@@ -460,7 +499,7 @@ export async function readDocument({ docType, front, back }) {
       }
       if (process.env.OCR_DEBUG) console.error("[ocr] zones:", JSON.stringify(zones.slice(0, 2)));
     }
-    let frontText = docType === "passport" ? texts[0] || "" : "";
+    let frontText = docType === "passport" ? texts.join("\n") : "";
     if (docType !== "passport" && front) {
       frontText = await recognizeText(await prepare(front));
       texts.push(frontText);
@@ -482,8 +521,7 @@ export async function readDocument({ docType, front, back }) {
     };
     const surFront = pickName(labelValues(frontLines, /(fam[il1]\w*|surname)/i), mrz.surname);
     const givenFront = pickName(labelValues(frontLines, /(ismi|given\s*name)/i), mrz.given);
-    let patronymic = labelValue(frontLines, /(otasining\b|patronym)/i);
-    if (!patronymic) patronymic = frontLines.map((l) => l.toUpperCase()).find((l) => /\b(QIZI|O['‘’ʻ`]?G['‘’ʻ`]?LI|UGLI)\b/.test(l)) || "";
+    const patronymic = pickPatronymic(frontLines);
     // Old tomondagi qalin yozuv aniqroq (apostrof ham bor); MRZ — faqat old tomonda topilmasa
     // Old tomonda harflar MRZ bilan bir xil bo'lsa — ortiqcha bo'shliqlarni olib tashlaymiz (TURSU NBAYEV → TURSUNBAYEV),
     // apostroflar esa old tomondan qoladi (MRZ da apostrof bo'lmaydi)
