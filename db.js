@@ -149,6 +149,13 @@ const studentContractSchema = new mongoose.Schema(
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
     note: { type: String, default: "" },
+    email: { type: String, default: "" },
+    // Shartnoma (panelda to‘ldiriladi)
+    contractNumber: { type: String, default: "" },
+    contractDate: { type: String, default: "" },
+    contractCourse: { type: String, default: "" },
+    contractMonths: { type: String, default: "" },
+    contractPrice: { type: String, default: "" },
     seenAt: { type: Date, default: null },
     passportFront: studentFile,
     passportBack: studentFile,
@@ -1146,6 +1153,12 @@ const STUDENT_TEXT_FIELDS = {
   address: 300,
   phone: 40,
   note: 2000,
+  email: 120,
+  contractNumber: 40,
+  contractDate: 10,
+  contractCourse: 120,
+  contractMonths: 3,
+  contractPrice: 15,
 };
 
 function studentText(input) {
@@ -1155,9 +1168,25 @@ function studentText(input) {
     let value = String(input[key] ?? "").replace(key === "note" ? /[^\S\n]+/g : /\s+/g, " ").trim();
     if (key === "jshshir") value = value.replace(/\D/g, "");
     if (key === "passportSeries") value = value.replace(/\s/g, "").toUpperCase();
+    if (key === "contractMonths" || key === "contractPrice") value = value.replace(/\D/g, "");
+    if (key === "contractDate" && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) value = "";
     out[key] = value.slice(0, max);
   }
   return out;
+}
+
+// O‘quvchi shartnomalari uchun alohida raqamlash: 1/2026, 2/2026, ...
+async function nextStudentContractNumber() {
+  const year = new Date().getFullYear();
+  const rows = await StudentContract.find({ ownerToken: ownerToken(), contractNumber: new RegExp(`/${year}$`) })
+    .select("contractNumber")
+    .lean();
+  let max = 0;
+  for (const row of rows) {
+    const match = String(row.contractNumber || "").match(/^(\d+)/);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `${max + 1}/${year}`;
 }
 
 export async function saveStudentContract({ telegramUserId, username, answers }) {
@@ -1166,6 +1195,7 @@ export async function saveStudentContract({ telegramUserId, username, answers })
     telegramUserId: String(telegramUserId || ""),
     username: username || "",
     ...studentText(answers),
+    contractNumber: await nextStudentContractNumber(),
   };
   for (const [slot, meta] of Object.entries(STUDENT_DOC_SLOTS)) {
     const file = answers[slot];

@@ -7,6 +7,13 @@ import {
   RATING_SCALE,
   assessmentGrade,
 } from "./assessment.js?v=14";
+import {
+  buildStudentContractHtml,
+  courseToCyr,
+  COURSES_CYR,
+  numberToUzWords,
+  formatPrice,
+} from "./student-contract.js?v=28";
 
 const loginView = document.querySelector("#login-view");
 const appView = document.querySelector("#app-view");
@@ -316,6 +323,11 @@ function openDateTimePicker(anchor, value, { onPick, onClose, withTime = true } 
   const picked = list?.querySelector(".dtp-slot.sel") || list?.querySelector('[data-time="10:00"]');
   if (list && picked) list.scrollTop = picked.offsetTop - list.clientHeight / 2 + picked.offsetHeight / 2;
   place();
+}
+
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function uzContractDate(value) {
@@ -2350,6 +2362,44 @@ function renderStudentDetail(item) {
     <div class="stu-docs">${docs}</div>
     <form class="stu-form" id="stu-form">
       ${fields}
+      <label class="stu-field">
+        <span>E-pochta (bo‘lsa)</span>
+        <input name="email" value="${esc(item.email || "")}" placeholder="misol@gmail.com" ${editable ? "" : "readonly"} />
+      </label>
+      <div class="stu-contract wide">
+        <div class="stu-contract-head">
+          <span class="stu-contract-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg></span>
+          <div>
+            <strong>Shartnoma</strong>
+            <p class="muted">Shu kartalar shartnomaga tushadi. Qolgan matn namunadagidek o‘zgarmaydi.</p>
+          </div>
+        </div>
+        <div class="stu-contract-grid">
+          <label class="stu-field">
+            <span>Shartnoma raqami</span>
+            <input name="contractNumber" value="${esc(item.contractNumber || "")}" placeholder="1/2026" ${editable ? "" : "readonly"} />
+          </label>
+          <label class="stu-field">
+            <span>Shartnoma sanasi</span>
+            <input type="hidden" name="contractDate" value="${esc(item.contractDate || todayIso())}" />
+            <button type="button" class="stu-date" id="stu-date" ${editable ? "" : "disabled"}>${esc(uzContractDate(item.contractDate || todayIso()))}</button>
+          </label>
+          <label class="stu-field">
+            <span>Kurs (shartnomada, kirillda)</span>
+            <input name="contractCourse" list="stu-courses" value="${esc(item.contractCourse || courseToCyr(item.course))}" placeholder="Инглиз тили" ${editable ? "" : "readonly"} />
+          </label>
+          <label class="stu-field">
+            <span>Muddati (oy)</span>
+            <input name="contractMonths" inputmode="numeric" value="${esc(item.contractMonths || "")}" placeholder="2" ${editable ? "" : "readonly"} />
+          </label>
+          <label class="stu-field span2">
+            <span>Umumiy summa (so‘m)</span>
+            <input name="contractPrice" inputmode="numeric" value="${esc(formatPrice(item.contractPrice))}" placeholder="2 200 000" ${editable ? "" : "readonly"} />
+          </label>
+          <p class="stu-words wide" id="stu-words"></p>
+        </div>
+        <datalist id="stu-courses">${COURSES_CYR.map(([, name]) => `<option value="${esc(name)}"></option>`).join("")}</datalist>
+      </div>
       <label class="stu-field wide">
         <span>Izoh</span>
         <textarea name="note" rows="3" placeholder="Masalan: shartnoma imzolandi, guruh, to‘lov..." ${editable ? "" : "readonly"}>${esc(item.note || "")}</textarea>
@@ -2357,17 +2407,45 @@ function renderStudentDetail(item) {
       <div class="stu-actions">
         ${canRemove() ? `<button type="button" class="arc-btn purge" id="stu-delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>O‘chirish</button>` : ""}
         <span class="stu-saved" id="stu-saved"></span>
-        ${editable ? `<button type="submit" class="stu-save">Saqlash</button>` : ""}
+        ${editable ? `<button type="submit" class="stu-save ghost">Saqlash</button>` : ""}
+        <button type="button" class="stu-make" id="stu-make"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg>Shartnomani tayyorlash</button>
       </div>
     </form>`;
   studentDetail.querySelector("#stu-back").addEventListener("click", showStudentList);
-  studentDetail.querySelector("#stu-form").addEventListener("input", () => {
-    studentDetail.querySelector("#stu-saved").textContent = "";
+  const form = studentDetail.querySelector("#stu-form");
+  const paintWords = () => {
+    const price = String(form.contractPrice.value || "").replace(/\D/g, "");
+    const months = String(form.contractMonths.value || "").replace(/\D/g, "");
+    const parts = [];
+    if (price) parts.push(`${formatPrice(price)} (${numberToUzWords(price)}) сўм`);
+    if (months) parts.push(`${months} (${numberToUzWords(months)}) ой`);
+    studentDetail.querySelector("#stu-words").textContent = parts.length
+      ? `Shartnomada shunday yoziladi: ${parts.join(" · ")}`
+      : "Summa va muddatni yozing — shartnomaga so‘z bilan avtomatik tushadi.";
+  };
+  paintWords();
+  form.contractPrice.addEventListener("input", () => {
+    const digits = form.contractPrice.value.replace(/\D/g, "").slice(0, 13);
+    form.contractPrice.value = formatPrice(digits);
+    paintWords();
   });
-  studentDetail.querySelector("#stu-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!editable) return;
-    const body = Object.fromEntries(new FormData(event.target));
+  form.contractMonths.addEventListener("input", () => {
+    form.contractMonths.value = form.contractMonths.value.replace(/\D/g, "").slice(0, 3);
+    paintWords();
+  });
+  const dateButton = studentDetail.querySelector("#stu-date");
+  dateButton?.addEventListener("click", () => {
+    openDateTimePicker(dateButton, form.contractDate.value, {
+      withTime: false,
+      onPick(next) {
+        form.contractDate.value = next || todayIso();
+        dateButton.textContent = uzContractDate(form.contractDate.value);
+        studentDetail.querySelector("#stu-saved").textContent = "";
+      },
+    });
+  });
+  async function saveStudentForm() {
+    const body = Object.fromEntries(new FormData(form));
     const res = await fetch(`/api/student-contracts/${encodeURIComponent(item._id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -2376,14 +2454,36 @@ function renderStudentDetail(item) {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       alert(data.error || "Saqlanmadi");
-      return;
+      return null;
     }
     const data = await res.json();
     const index = studentItems.findIndex((entry) => entry._id === item._id);
     if (index >= 0) studentItems[index] = data.item;
+    Object.assign(item, data.item);
     studentDetail.querySelector("#stu-saved").textContent = "✓ Saqlandi";
     studentDetail.querySelector(".stu-detail-title h2").textContent = data.item.fullName || "O‘quvchi";
+    return data.item;
+  }
+  studentDetail.querySelector("#stu-make").addEventListener("click", async () => {
+    const data = editable ? await saveStudentForm() : item;
+    if (!data) return;
+    const missing = [
+      ["contractCourse", "kurs"],
+      ["contractMonths", "muddat"],
+      ["contractPrice", "summa"],
+    ].filter(([key]) => !String(data[key] || "").trim()).map(([, label]) => label);
+    if (missing.length && !confirm(`Shartnomada ${missing.join(", ")} yozilmagan — bo‘sh chiziq qoladi. Baribir tayyorlansinmi?`)) return;
+    saveWordFile(buildStudentContractHtml(data), `oquvchi-${data.contractNumber || data.fullName || ""}`.replace(/[\\/:*?"<>|]+/g, "-"));
   });
+  form.addEventListener("input", () => {
+    studentDetail.querySelector("#stu-saved").textContent = "";
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!editable) return;
+    await saveStudentForm();
+  });
+
   studentDetail.querySelector("#stu-delete")?.addEventListener("click", async () => {
     if (!confirm(`${item.fullName || "Bu o‘quvchi"} shartnomasi butunlay o‘chirilsinmi? Qaytarib bo‘lmaydi.`)) return;
     const res = await fetch(`/api/student-contracts/${encodeURIComponent(item._id)}`, { method: "DELETE" });

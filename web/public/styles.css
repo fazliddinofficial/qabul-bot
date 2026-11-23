@@ -3242,3 +3242,63 @@ dialog#students-dialog {
   .students-btn svg { width: 18px; height: 18px; }
   .stu-new-badge { position: absolute; top: -4px; right: -4px; font-size: 10px; }
 }
+
+/* O‘quvchi shartnomasi kartalari */
+.stu-contract {
+  grid-column: span 3;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, color-mix(in srgb, #10b981 9%, var(--surface)), var(--surface));
+  border: 1px solid color-mix(in srgb, #10b981 35%, var(--line));
+}
+.stu-contract-head { display: flex; align-items: center; gap: 12px; }
+.stu-contract-head strong { font-size: 15px; }
+.stu-contract-head .muted { margin: 2px 0 0; font-size: 12.5px; }
+.stu-contract-ico {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, #10b981 16%, transparent);
+  color: #10b981;
+}
+.stu-contract-ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.stu-contract-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stu-contract-grid .wide { grid-column: span 3; }
+.stu-words { margin: 0; color: #10b981; font-size: 13px; font-weight: 600; }
+.stu-date {
+  width: 100%;
+  height: 40px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  text-align: left;
+  box-shadow: none;
+}
+.stu-date:hover { background: var(--surface-2); }
+.stu-date:disabled { background: var(--surface-2); cursor: default; }
+.stu-actions .stu-save { padding: 10px 20px; }
+.stu-make {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(16, 185, 129, 0.25);
+}
+.stu-make:hover { background: linear-gradient(135deg, #059669, #047857); }
+.stu-make svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 760px) {
+  .stu-contract, .stu-contract-grid .wide { grid-column: span 1; }
+  .stu-contract-grid { grid-template-columns: 1fr; }
+  .stu-actions { flex-wrap: wrap; }
+}
