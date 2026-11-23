@@ -56,7 +56,8 @@ async function recognizeText(img) {
 async function recognizeTopVariants(img, docType) {
   const meta = await sharp(img).metadata();
   // ID karta orqasida MRZ pastki ~38%, pasport sahifasida ~22%
-  const share = docType === "passport" ? 0.78 : 0.62;
+  // Pasport ko'pincha ikki sahifa (yuqorida "Kim tomonidan berilgan", pastda rasmli sahifa) — MRZ eng pastda
+  const share = docType === "passport" ? 0.9 : 0.62;
   const topPart = () => sharp(img).extract({ left: 0, top: 0, width: meta.width, height: Math.round(meta.height * share) });
   const variants = [
     { make: () => topPart(), psm: "3" },
@@ -153,6 +154,7 @@ function parseTd1(lines) {
   const docRaw = l1.slice(5, 14);
   const doc = cleanSeries(docRaw);
   if (doc && checkDigit(doc) === digits(l1[14] || "")) out.series = doc;
+  else out.seriesRaw = l1.slice(5, 15);
   const pin = digits(l1.slice(15, 30)).match(/\d{14}/)?.[0];
   if (pin) out.pinflMrz = pin;
   const dobRaw = digits(l2.slice(0, 6));
@@ -172,6 +174,7 @@ function parseTd3(lines) {
   const out = { ...namesFromMrz(l1.slice(5)) };
   const doc = cleanSeries(l2.slice(0, 9));
   if (doc && checkDigit(doc) === digits(l2[9] || "")) out.series = doc;
+  else out.seriesRaw = l2.slice(0, 10);
   const dobRaw = digits(l2.slice(13, 19));
   if (/^\d{6}$/.test(dobRaw) && checkDigit(dobRaw) === digits(l2[19] || "")) out.birthday = yymmddToDate(dobRaw);
   const pin = digits(l2.slice(28, 42));
@@ -188,18 +191,34 @@ function nameish(line) {
   return String(line || "").replace(/[1|!]/g, "I").replace(/0/g, "O").replace(/5/g, "S").replace(/8/g, "B").replace(/4/g, "A");
 }
 
-const LABEL_WORDS = /SURNAME|GIVEN|NAME|PATRONYMIC|FAMILIYA|ISMI|OTASINING|DATE|SANA/;
+const LABEL_WORDS = /SURNAME|GIVEN|NAME|PATRONYMIC|FAMILIYA|\bISMI?\b|OTASINING|DATE|SANA|NATIONALITY|FUQARO|JINSI/;
+// Yorliq qatoridagi yorliq so'zlari (OTASINING ISMI / PATRONYMIC) — qiymat deb olinmasin
+const LABEL_STRIP = /\b(OTASINING|ISMI?|PATRONYMIC|FAMILIYASI?|SURNAME|GIVEN|NAMES?|I)\b/gi;
 const VALUE_RE = /[A-ZʻʼО'‘’`]{2,}(?:[ -][A-ZʻʼО'‘’`]{2,})*/;
 
 function labelValue(rawLines, labelRe) {
+  return labelValues(rawLines, labelRe)[0] || "";
+}
+
+// Yorliqning barcha uchragan joylaridagi qiymatlar (pasportda ism ikki sahifada: o'zbekcha va inglizcha yozuvda)
+function labelValues(rawLines, labelRe) {
+  const found = [];
   for (let i = 0; i < rawLines.length; i += 1) {
+    const one = labelValueAt(rawLines, i, labelRe);
+    if (one) found.push(one);
+  }
+  return found;
+}
+
+function labelValueAt(rawLines, i, labelRe) {
+  {
     const line = rawLines[i];
     const m = line.match(labelRe);
-    if (!m) continue;
+    if (!m) return "";
     // Qiymat yorliq bilan bir qatorda (katta harflarda) bo'lishi mumkin
-    const rest = nameish(line.slice(m.index + m[0].length)).replace(/^[\s/:.-]+/, "").trim();
+    const rest = nameish(line.slice(m.index + m[0].length)).replace(LABEL_STRIP, " ").replace(/^[\s/:.-]+/, "").trim();
     const restUpper = rest.match(VALUE_RE)?.[0];
-    if (restUpper && restUpper.length >= 3 && !LABEL_WORDS.test(restUpper)) return restUpper;
+    if (restUpper && restUpper.length >= 3 && !LABEL_WORDS.test(restUpper)) return restUpper.trim();
     // …yoki keyingi qatorda. Ismlar katta harfda bosiladi — OCR kichik o'qisa ham kattalashtiramiz (QiZI → QIZI)
     for (let j = i + 1; j < Math.min(rawLines.length, i + 3); j += 1) {
       const next = nameish(rawLines[j]).toUpperCase().trim();
@@ -214,7 +233,7 @@ function labelValue(rawLines, labelRe) {
 // Otasining ismi oxiri yopiq ro'yxat: OCR xatolarini to'g'rilaymiz (QIZL, QIZZI → qizi; OGLI, 0G'LI → o'g'li)
 function suffixFix(word) {
   if (/^q[il1]?z+[il1]{1,2}$/i.test(word)) return "qizi";
-  if (/^[ou0]?'?g'?l[il1y]$/i.test(word)) return "o'g'li";
+  if (/^[ou0]{0,2}'?g'?l[il1y]$/i.test(word)) return "o'g'li";
   return "";
 }
 
@@ -232,7 +251,8 @@ function titleCase(value) {
 }
 
 function datesIn(text) {
-  return [...String(text || "").matchAll(/\b(0[1-9]|[12]\d|3[01])[.\/,-](0[1-9]|1[0-2])[.\/,-]((?:19|20)\d{2})\b/g)].map((m) => `${m[1]}.${m[2]}.${m[3]}`);
+  // Sana nuqta bilan ham (20.01.2017), bo'shliq bilan ham (pasportda: 20 01 2017) yozilishi mumkin
+  return [...String(text || "").matchAll(/\b(0[1-9]|[12]\d|3[01])\s?[.\/,\- ]\s?(0[1-9]|1[0-2])\s?[.\/,\- ]\s?((?:19|20)\d{2})\b/g)].map((m) => `${m[1]}.${m[2]}.${m[3]}`);
 }
 const dateKey = (d) => d.split(".").reverse().join("");
 
@@ -248,7 +268,7 @@ function issuerInStrict(text) {
   return m ? `IIV ${m[1]}` : "";
 }
 
-const DATE_RE_G = /\b(0[1-9]|[12]\d|3[01])[.\/,-](0[1-9]|1[0-2])[.\/,-]((?:19|20)\d{2})\b/;
+const DATE_RE_G = /\b(0[1-9]|[12]\d|3[01])\s?[.\/,\- ]\s?(0[1-9]|1[0-2])\s?[.\/,\- ]\s?((?:19|20)\d{2})\b/;
 const ISSUE_LABEL = /(berilgan\s*sana\w*|date\s*of\s*issue|issued?\s*on|date\s*of\s*iss)/i;
 // ID karta orqasida "Berilgan joyi / Place of issue", pasportda "Kim tomonidan berilgan / Authority"
 const AUTHORITY_LABEL = /(kim\s*tomonidan(\s*berilgan)?|authority|berilgan\s*j\s*o\s*y\w*|place\s*o[fi]\s*iss?ue)/i;
@@ -273,8 +293,52 @@ function issuedByLabel(lines) {
   return "";
 }
 
+// Pasport daftarchasi: "KIM TOMONIDAN BERILGAN" ostida organ nomi bir necha qatorda bo'ladi:
+// "JIZZAX VILOYATI ZOMIN" / "TUMANI IIB" → "Jizzax viloyati Zomin tumani IIB"
+const KIM_LABEL = /(k\w{0,3}\s*tomonidan|tomonidan\s*berilgan)/i;
+const ISSUER_END = /^(IIB|IIV|IIBB|IIIB|IIO|FHDYO|BO'LIMI|BOLIMI|VAZIRLIGI|BOSHQARMASI|IIVB)$/;
+// Yon ustundan aralashib qoladigan qiymat/yorliq so'zlari
+const ISSUER_SKIP = /^([O0]'?ZBEK|ERKAK|AYOL|MILLATI?|KIM|TOMONIDAN|BERILGAN|KIMTOMONIDANBERILGAN|RESPUBLIKASI|PASPORT|PASSPORT)$/;
+const ISSUER_STOP = /(SANAS|JOY[I1!}]?\b|DATE|SEX|JINSI|NAME|SURNAME|FAMILIYA|SIGNATURE|IMZO|MUDDAT)/i;
+
+function issuerWords(line) {
+  // Faqat KATTA harfli so'zlar: organ nomi katta harfda bosiladi, fon "shovqini" esa odatda kichik harf bo'lib o'qiladi
+  return (String(line).replace(/[‘’ʻ`]/g, "'").match(/[A-Z][A-Z']+\.?/g) || [])
+    .map((w) => w.replace(/\.$/, ""))
+    .filter((w) => (w.length >= 3 || w === "SH") && !ISSUER_SKIP.test(w));
+}
+
+function issuerAfterKim(lines) {
+  const votes = new Map();
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = lines[i].match(KIM_LABEL);
+    if (!m) continue;
+    const words = [];
+    const rest = lines[i].slice(m.index + m[0].length).replace(/^\s*berilgan/i, "");
+    const following = [rest, ...lines.slice(i + 1, i + 7)];
+    let done = false;
+    for (let j = 0; j < following.length && !done; j += 1) {
+      if (j > 0 && ISSUER_STOP.test(following[j])) break;
+      for (const w of issuerWords(following[j])) {
+        words.push(w);
+        if (ISSUER_END.test(w)) {
+          done = true;
+          break;
+        }
+      }
+    }
+    if (!done || words.length < 2) continue;
+    const value = capitalizePlace(words.join(" ").toLowerCase());
+    votes.set(value, (votes.get(value) || 0) + 1);
+  }
+  // Bir necha xil o'qishdan eng ko'p takrorlangani; teng bo'lsa — uzunrog'i (to'liqrog'i)
+  return [...votes.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0]?.[0] || "";
+}
+
 // "Kim tomonidan berilgan / Authority" → "IIV 26283" yoki "Jizzax shahar IIB"
 function authorityByLabel(lines) {
+  const kim = issuerAfterKim(lines);
+  if (kim) return kim;
   for (let i = 0; i < lines.length; i += 1) {
     const at = lines[i].search(AUTHORITY_LABEL);
     if (at < 0) continue;
@@ -298,9 +362,43 @@ function authorityByLabel(lines) {
   return "";
 }
 
+// MRZ'dagi seriya suv belgisi tufayli xato o'qilsa — sahifadagi bosma raqamdan ("PASPORT RAQAMI  AB5710342").
+// Ishonchli deb olinadi: MRZ tekshiruv raqamiga mos kelsa, MRZ'dagidan ko'pi bilan 2 belgi farq qilsa yoki matnda 2+ marta uchrasa
+function seriesFromText(text, raws) {
+  const counts = new Map();
+  for (const m of String(text || "").toUpperCase().matchAll(/(?:^|[^A-Z0-9])([A-Z]{2})\s?(\d{7})(?![0-9])/g)) {
+    const s = m[1] + m[2];
+    counts.set(s, (counts.get(s) || 0) + 1);
+  }
+  const diff = (a, b) => [...a].filter((ch, i) => ch !== b[i]).length;
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  for (const [s, n] of ranked) {
+    const mrzOk = raws.some((raw) => {
+      const r = String(raw || "");
+      return (r.length >= 10 && checkDigit(s) === digits(r[9])) || (r.length >= 9 && diff(s, r.slice(0, 9)) <= 2);
+    });
+    if (mrzOk || n >= 2) return s;
+  }
+  return "";
+}
+
 function pinflIn(text) {
   const m = String(text || "").replace(/(\d)\s+(?=\d)/g, "$1").match(/\b[3-6]\d{13}\b/);
   return m ? m[0] : "";
+}
+
+// Matndagi barcha 14 xonali JSHSHIR nomzodlari (bir necha xil o'qishdan)
+function pinflAllIn(text) {
+  return [...new Set([...String(text || "").replace(/(\d)\s+(?=\d)/g, "$1").matchAll(/\b[3-6]\d{13}\b/g)].map((m) => m[0]))];
+}
+
+// JSHSHIR'ning oxirgi raqami — tekshiruv raqami: dastlabki 13 raqam × 7,3,1,7,3,1… yig'indisining oxirgi raqami
+export function pinflValid(pin) {
+  if (!/^[3-6]\d{13}$/.test(String(pin || ""))) return false;
+  const weights = [7, 3, 1];
+  let sum = 0;
+  for (let i = 0; i < 13; i += 1) sum += Number(pin[i]) * weights[i % 3];
+  return sum % 10 === Number(pin[13]);
 }
 
 // JSHSHIR'ning 2–7-raqamlari = tug'ilgan sana (KKOOYY)
@@ -319,6 +417,7 @@ export async function readDocument({ docType, front, back }) {
     const out = {};
     const texts = [];
     let mrz = {};
+    const seriesRaws = [];
     const main = docType === "passport" ? front : back;
     if (main) {
       const img = await prepare(main);
@@ -336,6 +435,7 @@ export async function readDocument({ docType, front, back }) {
       for (const zone of zones) {
         const found = parse(mrzLines(zone));
         for (const [key, value] of Object.entries(found)) if (value && !mrz[key]) mrz[key] = value;
+        if (found.seriesRaw) seriesRaws.push(found.seriesRaw);
       }
       if (process.env.OCR_DEBUG) console.error("[ocr] zones:", JSON.stringify(zones.slice(0, 2)));
     }
@@ -349,8 +449,18 @@ export async function readDocument({ docType, front, back }) {
     if (process.env.OCR_DEBUG) console.error("[ocr] front:", JSON.stringify(frontLines), "\n[ocr] mrz:", JSON.stringify(mrz));
 
     // Ism-familiya: old tomondagi yozuv (apostrof bilan), MRZ bilan solishtiriladi
-    const surFront = labelValue(frontLines, /(familiya\w*|surname)/i);
-    const givenFront = labelValue(frontLines, /(ismi|given\s*name)/i);
+    // Pasportda ism ikki joyda: o'zbekcha sahifada (TURSUNBOYEV) va inglizcha sahifada (TURSUNBOEV).
+    // MRZ bilan mos (Y hisobga olinmaganda) nomzodlardan o'zbekcha — harflari ko'prog'i olinadi
+    const bareY = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "").replace(/Y/g, "");
+    const pickName = (list, fromMrz) => {
+      if (!list.length) return "";
+      if (!fromMrz) return list[0];
+      const fit = list.filter((c) => bareY(c) === bareY(fromMrz));
+      if (!fit.length) return list[0];
+      return fit.sort((a, b) => b.replace(/[^A-Z]/gi, "").length - a.replace(/[^A-Z]/gi, "").length)[0];
+    };
+    const surFront = pickName(labelValues(frontLines, /(fam[il1]\w*|surname)/i), mrz.surname);
+    const givenFront = pickName(labelValues(frontLines, /(ismi|given\s*name)/i), mrz.given);
     let patronymic = labelValue(frontLines, /(otasining\b|patronym)/i);
     if (!patronymic) patronymic = frontLines.map((l) => l.toUpperCase()).find((l) => /\b(QIZI|O['‘’ʻ`]?G['‘’ʻ`]?LI|UGLI)\b/.test(l)) || "";
     // Old tomondagi qalin yozuv aniqroq (apostrof ham bor); MRZ — faqat old tomonda topilmasa
@@ -372,15 +482,17 @@ export async function readDocument({ docType, front, back }) {
     if (patronymicClean.length >= 3) out.patronymic = titleCase(patronymicClean);
     if (out.surname && out.given && out.patronymic) out.fullName = `${out.surname} ${out.given} ${out.patronymic}`;
 
-    if (mrz.series) out.passportSeries = mrz.series;
+    const series = mrz.series || seriesFromText(allText, seriesRaws);
+    if (series) out.passportSeries = series;
     if (mrz.birthday) out.birthday = mrz.birthday;
 
-    // JSHSHIR: MRZ va matndagi bilan mos kelsa yoki tug'ilgan sana bilan tasdiqlansa
-    const pinText = pinflIn(allText);
-    const candidates = [mrz.pinflMrz, pinText, mrz.pinflMrzWeak].filter(Boolean);
+    // JSHSHIR: o'z tekshiruv raqami (7-3-1) to'g'ri bo'lsa, tug'ilgan sana bilan mos bo'lsa yoki MRZ va matnda bir xil bo'lsa
+    const pinTexts = pinflAllIn(allText);
+    const candidates = [mrz.pinflMrz, ...pinTexts, mrz.pinflMrzWeak].filter(Boolean);
     const pin =
+      candidates.find((p) => pinflValid(p) && (!out.birthday || pinflMatchesBirthday(p, out.birthday))) ||
       candidates.find((p) => pinflMatchesBirthday(p, out.birthday)) ||
-      (mrz.pinflMrz && pinText && mrz.pinflMrz === pinText ? pinText : "");
+      (mrz.pinflMrz && pinTexts.includes(mrz.pinflMrz) ? mrz.pinflMrz : "");
     if (pin) out.jshshir = pin;
     if (!out.birthday && pin) {
       const dd = pin.slice(1, 3);
