@@ -751,6 +751,81 @@ function formatSum(value) {
   return `${Number(digits).toLocaleString("ru-RU")} so'm`;
 }
 
+// Kelishilgan oylik: fiks summa, foiz yoki ikkalasi — "3 000 000 so'm + 30%" ko‘rinishida saqlanadi
+function parseAgreedSalary(value) {
+  const raw = String(value || "");
+  const pm = raw.match(/(\d+(?:[.,]\d+)?)\s*%/);
+  const pct = pm ? pm[1].replace(",", ".") : "";
+  const fix = (pm ? raw.replace(pm[0], "") : raw).replace(/\D/g, "");
+  return { fix, pct };
+}
+
+function formatAgreedSalary(value) {
+  const { fix, pct } = parseAgreedSalary(value);
+  return [fix ? formatSum(fix) : "", pct ? `${pct}%` : ""].filter(Boolean).join(" + ");
+}
+
+function salaryEditorHtml(value) {
+  return `
+    <input name="agreedSalary" type="hidden" value="${esc(formatAgreedSalary(value))}" />
+    <div class="sal-edit">
+      <div class="sal-mode">
+        <button type="button" data-sal-mode="fix">Fiks</button>
+        <button type="button" data-sal-mode="pct">Foiz</button>
+        <button type="button" data-sal-mode="both">Fiks + foiz</button>
+      </div>
+      <label class="sal-row sal-fix"><input data-sal="fix" inputmode="numeric" placeholder="5 000 000" autocomplete="off" /><em>so‘m</em></label>
+      <label class="sal-row sal-pct"><input data-sal="pct" inputmode="decimal" placeholder="30" autocomplete="off" /><em>%</em></label>
+    </div>`;
+}
+
+function setupSalaryEditor(card, value) {
+  const hidden = card.querySelector('input[name="agreedSalary"]');
+  const box = card.querySelector(".sal-edit");
+  const fixInput = card.querySelector('[data-sal="fix"]');
+  const pctInput = card.querySelector('[data-sal="pct"]');
+  if (!hidden || !box || !fixInput || !pctInput) return;
+  const sync = () => {
+    const mode = box.dataset.mode;
+    const fixDigits = fixInput.value.replace(/\D/g, "");
+    const pctValue = Number(pctInput.value.replace(",", ".").replace(/[^\d.]/g, ""));
+    const parts = [];
+    if (mode !== "pct" && fixDigits) parts.push(fixDigits);
+    if (mode !== "fix" && pctValue > 0) parts.push(`${Math.min(pctValue, 100)}%`);
+    hidden.value = formatAgreedSalary(parts.join(" "));
+  };
+  const setMode = (mode) => {
+    box.dataset.mode = mode;
+    box.querySelectorAll("[data-sal-mode]").forEach((b) => b.classList.toggle("active", b.dataset.salMode === mode));
+    sync();
+  };
+  const focusFirst = () => (box.dataset.mode === "pct" ? pctInput : fixInput).focus();
+  if (!box.dataset.ready) {
+    box.dataset.ready = "1";
+    box.querySelectorAll("[data-sal-mode]").forEach((b) => b.addEventListener("click", () => {
+      setMode(b.dataset.salMode);
+      focusFirst();
+    }));
+    fixInput.addEventListener("input", () => {
+      const digits = fixInput.value.replace(/\D/g, "").slice(0, 12);
+      fixInput.value = digits ? Number(digits).toLocaleString("ru-RU") : "";
+      sync();
+    });
+    pctInput.addEventListener("input", () => {
+      pctInput.value = pctInput.value.replace(/[^\d.,]/g, "").slice(0, 5);
+      sync();
+    });
+    [fixInput, pctInput].forEach((input) => input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") card.querySelector(".card-save")?.click();
+    }));
+  }
+  const { fix, pct } = parseAgreedSalary(value);
+  fixInput.value = fix ? Number(fix).toLocaleString("ru-RU") : "";
+  pctInput.value = pct;
+  setMode(fix && pct ? "both" : pct ? "pct" : "fix");
+  focusFirst();
+}
+
 function formatPhone(phone) {
   let digits = String(phone || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -1526,7 +1601,7 @@ async function openDetail(id, silent = false) {
           )}
           ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="hidden" value="${esc(item.interviewAt || "")}" />`)}
           ${editCard("workStart", "Ish boshlash", prettyStamp(item.workStart), `<input name="workStart" type="hidden" value="${esc(item.workStart || "")}" />`)}
-          ${editCard("agreedSalary", "Kelishilgan oylik", formatSum(item.agreedSalary), `<input name="agreedSalary" value="${esc(formatSum(item.agreedSalary))}" placeholder="5 000 000" />`)}
+          ${editCard("agreedSalary", "Kelishilgan oylik", formatAgreedSalary(item.agreedSalary), salaryEditorHtml(item.agreedSalary), true)}
           <button type="button" class="pass-field has-ico score-launch" id="open-assess"${fieldStyle("score")} title="20 ta pedagogik savol bo‘yicha baholash">
             ${fieldIcon("score")}
             <span>Ball · 20 savol</span>
@@ -1633,7 +1708,7 @@ async function openDetail(id, silent = false) {
     interviewStatus: interview,
     score: item.score == null || item.score === "" ? "" : Math.round(Number(item.score)),
     note: item.note || "",
-    agreedSalary: formatSum(item.agreedSalary),
+    agreedSalary: formatAgreedSalary(item.agreedSalary),
     lastSalary: formatSum(item.lastSalary),
     expectedSalary: formatSum(item.expectedSalary),
     phone: formatPhone(item.phone),
@@ -1677,7 +1752,8 @@ async function openDetail(id, silent = false) {
     if (key === "hiredAt" || key === "contractEnd") return uzContractDate(draft[key]) || "—";
     if (key === "interviewAt" || key === "workStart") return prettyStamp(draft[key]) || "—";
     if (key === "phone" || key === "parentPhone") return formatPhone(draft[key]) || "—";
-    if (key === "agreedSalary" || key === "lastSalary" || key === "expectedSalary") return formatSum(draft[key]) || "—";
+    if (key === "agreedSalary") return formatAgreedSalary(draft[key]) || "—";
+    if (key === "lastSalary" || key === "expectedSalary") return formatSum(draft[key]) || "—";
     if (key === "score") return draft.score === "" || draft.score == null ? "—" : `${draft.score} / 10`;
     if (draft[key] === 0 || draft[key]) return String(draft[key]);
     return "—";
@@ -1700,7 +1776,8 @@ async function openDetail(id, silent = false) {
       }
     } else if (input) {
       if (key === "phone" || key === "parentPhone") draft[key] = formatPhone(input.value);
-      else if (key === "agreedSalary" || key === "lastSalary" || key === "expectedSalary") draft[key] = formatSum(input.value);
+      else if (key === "agreedSalary") draft[key] = formatAgreedSalary(input.value);
+      else if (key === "lastSalary" || key === "expectedSalary") draft[key] = formatSum(input.value);
       else if (key === "jshshir") draft[key] = String(input.value || "").replace(/\D/g, "").slice(0, 14);
       else if (key === "passportSeries") draft[key] = String(input.value || "").trim().toUpperCase().slice(0, 20);
       else if (key === "hiredAt") {
@@ -1797,6 +1874,10 @@ async function openDetail(id, silent = false) {
             card.classList.remove("editing");
           },
         });
+        return;
+      }
+      if (card.dataset.edit === "agreedSalary") {
+        setupSalaryEditor(card, draft.agreedSalary);
         return;
       }
       card.querySelector("input, textarea")?.focus();
