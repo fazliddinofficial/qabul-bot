@@ -30,6 +30,7 @@
   --t-started: #0891b2;   --t-started-soft: #e2f6fb;
   --t-left: #475569;      --t-left-soft: #e9edf2;
   --t-late: #e11d48;      --t-late-soft: #fff1f3;
+  --t-declined: #c2410c;  --t-declined-soft: #fff4ec;
 
   --accent-bg: #4f46e5;
   --pink-soft: #fdf2f8;
@@ -84,6 +85,7 @@
   --t-started: #22d3ee;   --t-started-soft: rgba(34, 211, 238, 0.13);
   --t-left: #cbd5e1;      --t-left-soft: rgba(203, 213, 225, 0.13);
   --t-late: #fb7185;      --t-late-soft: rgba(251, 113, 133, 0.14);
+  --t-declined: #fb923c;  --t-declined-soft: rgba(251, 146, 60, 0.14);
   --t-new: #f472b6;       --t-new-soft: rgba(244, 114, 182, 0.14);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -408,7 +410,7 @@ button.danger:hover { background: #b91c1c; }
 /* ============ Stats ============ */
 .stats {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 12px;
 }
 .stat {
@@ -472,6 +474,7 @@ button.danger:hover { background: #b91c1c; }
 .stat.tone-started { --c: var(--t-started); --c-soft: var(--t-started-soft); }
 .stat.tone-left { --c: var(--t-left); --c-soft: var(--t-left-soft); }
 .stat.tone-late { --c: var(--t-late); --c-soft: var(--t-late-soft); }
+.stat.tone-declined { --c: var(--t-declined); --c-soft: var(--t-declined-soft); }
 .stat.tone-new { --c: var(--t-new); --c-soft: var(--t-new-soft); }
 .stat.tone-new b { color: var(--t-new); }
 
@@ -698,6 +701,7 @@ button.acard.is-new:hover { border-color: var(--pink); }
 .tone-started { --c: var(--t-started); --c-soft: var(--t-started-soft); }
 .tone-left { --c: var(--t-left); --c-soft: var(--t-left-soft); }
 .tone-late { --c: var(--t-late); --c-soft: var(--t-late-soft); }
+.tone-declined { --c: var(--t-declined); --c-soft: var(--t-declined-soft); }
 
 .ac-top {
   display: flex;
@@ -1415,6 +1419,7 @@ button.photo-open img,
 .edit-card.tone-started,
 .edit-card.tone-left,
 .edit-card.tone-late,
+.edit-card.tone-declined,
 .edit-card.tone-hired {
   background: var(--c-soft);
   border-color: var(--c);
@@ -1426,6 +1431,7 @@ button.photo-open img,
 .edit-card.tone-started > strong,
 .edit-card.tone-left > strong,
 .edit-card.tone-late > strong,
+.edit-card.tone-declined > strong,
 .edit-card.tone-hired > strong { color: var(--c); }
 
 .card-save {
@@ -3420,3 +3426,106 @@ dialog#students-dialog {
   .tpl-card-actions { flex-direction: row; }
   .tpl-open { padding: 0 12px; }
 }
+
+
+/* ============ Izohlar (har biri alohida) ============ */
+.pass > .notes-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "ico head" "ico list" "ico form";
+  align-content: start;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--fc) 8%, var(--surface)), var(--surface));
+  border-color: color-mix(in srgb, var(--fc) 40%, var(--line));
+  min-height: 0;
+}
+.notes-card > .pf-ico { grid-area: ico; align-self: start; margin-top: 2px; }
+.notes-head { grid-area: head; display: flex; align-items: center; gap: 8px; }
+.notes-head span { color: var(--fc); }
+.notes-count { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); }
+.notes-list {
+  grid-area: list;
+  display: grid;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+.note-empty { margin: 0; color: var(--faint); font-size: 13px; }
+.note-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.note-item.legacy { border-style: dashed; background: transparent; }
+.note-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: hsl(var(--nh) 70% 55% / 0.16);
+  color: hsl(var(--nh) 70% 60%);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.note-body { min-width: 0; }
+.note-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.note-meta b { font-weight: 700; color: var(--ink); }
+.note-meta time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.note-meta time::before { content: "·"; margin-right: 8px; color: var(--faint); }
+.note-del {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--faint);
+  box-shadow: none;
+  opacity: 0;
+}
+.note-item:hover .note-del, .note-del:focus-visible { opacity: 1; }
+.note-del:hover { background: var(--danger-soft); color: var(--danger); }
+.note-del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.note-body p { margin: 3px 0 0; font-size: 13.5px; font-weight: 550; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-form { grid-area: form; display: flex; align-items: flex-end; gap: 8px; }
+.note-form textarea {
+  flex: 1;
+  min-height: 38px;
+  max-height: 120px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  resize: none;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.note-form textarea:focus { border-color: var(--fc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fc) 18%, transparent); }
+.note-send {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--fc);
+  color: #1f1300;
+}
+.note-send:hover { background: color-mix(in srgb, var(--fc) 85%, #000); }
+.note-send:disabled { opacity: 0.5; }
+.note-send svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: none) { .note-del { opacity: 1; } }
+.pass > .notes-card.has-ico > .pf-ico { align-self: start !important; margin-top: 0; }
+.note-form textarea { overflow-y: hidden; }
+.note-avatar { background: hsl(var(--nh) 75% 55% / 0.22); color: hsl(var(--nh) 80% 68%); }
+:root:not([data-theme="dark"]) .note-avatar { color: hsl(var(--nh) 65% 38%); }

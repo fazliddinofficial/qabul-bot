@@ -41,6 +41,8 @@ import {
   deleteStudentContract,
   getStudentContractFile,
   getStudentContractFull,
+  addApplicationNote,
+  deleteApplicationNote,
   listContractTemplates,
   createContractTemplate,
   getContractTemplateFile,
@@ -127,6 +129,7 @@ const statusNames = {
   hired: "Boshqa joyga ishga kirgan",
   started: "Ishni boshladi",
   left: "Ishdan bo‘shagan",
+  declined: "Ishlamaydi ekan",
 };
 
 function shown(key, value) {
@@ -552,6 +555,37 @@ export async function startWeb() {
       detail: `${item.fullName || "Ariza"}. ${meta.label}`,
     });
     res.json({ item });
+  });
+
+  // Izohlar: har biri alohida, vaqti va muallifi bilan
+  app.post("/api/applications/:id/notes", requireAuth, requireEdit, async (req, res) => {
+    try {
+      const item = await addApplicationNote(req.params.id, req.body?.text, actorOf(req));
+      if (!item) return res.status(404).json({ error: "Ariza topilmadi" });
+      await recordActivity({
+        actor: actorOf(req),
+        action: "Izoh yozdi",
+        detail: `${item.fullName || "Ariza"}: ${String(req.body?.text || "").trim().slice(0, 300)}`,
+      });
+      res.json({ notes: item.notes || [] });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "Izoh saqlanmadi" });
+    }
+  });
+
+  app.delete("/api/applications/:id/notes/:noteId", requireAuth, requireEdit, async (req, res) => {
+    try {
+      const result = await deleteApplicationNote(req.params.id, req.params.noteId, actorOf(req));
+      if (!result) return res.status(404).json({ error: "Izoh topilmadi" });
+      await recordActivity({
+        actor: actorOf(req),
+        action: "Izohni o‘chirdi",
+        detail: `${result.item?.fullName || "Ariza"}: ${String(result.removed?.text || "").slice(0, 300)}`,
+      });
+      res.json({ notes: result.item?.notes || [], note: result.item?.note || "" });
+    } catch (error) {
+      res.status(error.status || 500).json({ error: error.message || "Izoh o‘chirilmadi" });
+    }
   });
 
   app.get("/api/applications/:id/photo", requireAuth, async (req, res) => {

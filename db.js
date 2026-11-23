@@ -46,6 +46,18 @@ const applicationSchema = new mongoose.Schema(
     assessment: { type: mongoose.Schema.Types.Mixed, default: null },
     assessmentScore: { type: Number, default: null },
     note: { type: String, default: "" },
+    // Izohlar tarixi: har biri alohida — kim, qachon yozgan
+    notes: {
+      type: [
+        {
+          text: { type: String, default: "" },
+          at: { type: Date, default: Date.now },
+          byId: { type: String, default: "" },
+          byName: { type: String, default: "" },
+        },
+      ],
+      default: [],
+    },
     agreedSalary: { type: String, default: "" },
     interviewAt: { type: String, default: "" },
     workStart: { type: String, default: "" },
@@ -873,7 +885,7 @@ export async function updateApplicationReview(id, input, actor) {
   if (!prev) return null;
 
   // "missed" (Kelmagan) eski yozuvlar uchun qoldirilgan — panelda endi tanlanmaydi
-  const allowedStatus = new Set(["none", "expected", "arrived", "missed", "hired", "started", "left"]);
+  const allowedStatus = new Set(["none", "expected", "arrived", "missed", "hired", "started", "left", "declined"]);
   let interviewStatus = allowedStatus.has(input.interviewStatus) ? input.interviewStatus : "none";
   if (input.interviewStatus === "called") interviewStatus = "expected";
   let score = null;
@@ -887,7 +899,6 @@ export async function updateApplicationReview(id, input, actor) {
     score = num;
   }
 
-  const note = String(input.note || "").slice(0, 2000);
   const interviewAt = String(input.interviewAt || "").slice(0, 40);
   const agreedSalary = String(input.agreedSalary || "").slice(0, 80);
   const salaryDigits = agreedSalary.replace(/\D/g, "");
@@ -900,7 +911,7 @@ export async function updateApplicationReview(id, input, actor) {
   const previousStatus = prev.interviewStatus || "none";
   prev.interviewStatus = interviewStatus;
   prev.score = score;
-  prev.note = note;
+  // Izohlar endi alohida yo‘l bilan (/notes) yoziladi — bu yerda eski izohga tegilmaydi
   prev.agreedSalary = agreedSalary;
   prev.expectedSalary = String(input.expectedSalary || "").slice(0, 80);
   prev.phone = String(input.phone || "").slice(0, 40);
@@ -1041,6 +1052,66 @@ export async function saveAssessment(id, input, actor) {
   )
     .select(withoutFiles)
     .lean();
+}
+
+function actorName(actor) {
+  return [actor?.surname, actor?.name].filter(Boolean).join(" ") || actor?.username || "Noma’lum";
+}
+
+export async function addApplicationNote(id, text, actor) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  const clean = String(text || "").replace(/\r\n/g, "\n").trim().slice(0, 2000);
+  if (!clean) {
+    const error = new Error("Izoh bo‘sh");
+    error.status = 400;
+    throw error;
+  }
+  return Application.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken() },
+    { $push: { notes: { text: clean, at: new Date(), byId: String(actor?.id || ""), byName: actorName(actor) } } },
+    { new: true },
+  )
+    .select("fullName notes note")
+    .lean();
+}
+
+export async function deleteApplicationNote(id, noteId, actor) {
+  if (!mongoose.isValidObjectId(id)) return null;
+  // Eski (bitta matnli) izoh — faqat admin o‘chiradi
+  if (noteId === "legacy") {
+    if (actor?.role !== "admin") {
+      const error = new Error("Eski izohni faqat admin o‘chira oladi");
+      error.status = 403;
+      throw error;
+    }
+    const before = await Application.findOne({ _id: id, ownerToken: ownerToken() }).select("note").lean();
+    if (!before?.note) return null;
+    const updated = await Application.findOneAndUpdate(
+      { _id: id, ownerToken: ownerToken() },
+      { $set: { note: "" } },
+      { new: true },
+    )
+      .select("fullName notes note")
+      .lean();
+    return { item: updated, removed: { text: before.note } };
+  }
+  if (!mongoose.isValidObjectId(noteId)) return null;
+  const doc = await Application.findOne({ _id: id, ownerToken: ownerToken() }).select("fullName notes note").lean();
+  const target = doc?.notes?.find((entry) => String(entry._id) === String(noteId));
+  if (!target) return null;
+  if (actor?.role !== "admin" && target.byId !== String(actor?.id || "")) {
+    const error = new Error("Faqat o‘zingiz yozgan izohni o‘chira olasiz");
+    error.status = 403;
+    throw error;
+  }
+  const updated = await Application.findOneAndUpdate(
+    { _id: id, ownerToken: ownerToken() },
+    { $pull: { notes: { _id: noteId } } },
+    { new: true },
+  )
+    .select("fullName notes note")
+    .lean();
+  return { item: updated, removed: target };
 }
 
 export async function setApplicationFavorite(id, favorite) {
@@ -1345,6 +1416,8 @@ const importStatuses = {
   zaxirada: "arrived",
   "ishni boshladi": "started",
   "ishdan bo‘shagan": "left",
+  "ishlamaydi ekan": "declined",
+  declined: "declined",
   "ishdan bo'shagan": "left",
   kelmagan: "missed",
   "ishga kirgan": "hired",

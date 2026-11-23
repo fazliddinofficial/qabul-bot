@@ -691,6 +691,7 @@ function interviewKey(status) {
   if (status === "hired") return "hired";
   if (status === "started") return "started";
   if (status === "left") return "left";
+  if (status === "declined") return "declined";
   if (status === "missed") return "missed";
   if (status === "expected" || status === "called") return "expected";
   return "none";
@@ -720,6 +721,7 @@ const interviewLabels = {
   hired: "Boshqa joyga ishga kirgan",
   started: "Ishni boshladi",
   left: "Ishdan bo‘shagan",
+  declined: "Ishlamaydi ekan",
 };
 
 function dateMatch(item) {
@@ -734,7 +736,7 @@ function dateMatch(item) {
 }
 
 function statusMatch(item) {
-  if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired" || activeStatus === "started" || activeStatus === "left") {
+  if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired" || activeStatus === "started" || activeStatus === "left" || activeStatus === "declined") {
     return interviewKey(item.interviewStatus) === activeStatus;
   }
   if (activeStatus === "scored") return hasScore(item);
@@ -836,6 +838,132 @@ function setupSalaryEditor(card, value) {
   pctInput.value = pct;
   setMode(fix && pct ? "both" : pct ? "pct" : "fix");
   focusFirst();
+}
+
+// ============ Izohlar: har biri alohida, vaqti va muallifi bilan ============
+function noteEntries(item) {
+  const list = (item.notes || []).map((note) => ({ ...note, legacy: false }));
+  if (String(item.note || "").trim()) list.unshift({ _id: "legacy", text: item.note, legacy: true });
+  return list;
+}
+
+function notesPlainText(item) {
+  return noteEntries(item)
+    .map((note) => (note.legacy ? note.text : `[${formatDate(note.at)} · ${note.byName || "—"}] ${note.text}`))
+    .join("\n");
+}
+
+function noteInitials(name) {
+  return String(name || "?").trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("") || "?";
+}
+
+function noteHue(name) {
+  let hash = 0;
+  for (const ch of String(name || "")) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return hash;
+}
+
+function noteListHtml(item) {
+  const entries = noteEntries(item);
+  if (!entries.length) return `<p class="note-empty">Hali izoh yo‘q</p>`;
+  return entries
+    .map((note) => {
+      const mine = currentUser?.role === "admin" || (!note.legacy && note.byId === currentUser?.id);
+      const who = note.legacy ? "Avvalgi izoh" : note.byName || "Noma’lum";
+      return `
+        <article class="note-item${note.legacy ? " legacy" : ""}">
+          <span class="note-avatar" style="--nh:${note.legacy ? 220 : noteHue(note.byName)}">${note.legacy ? "✎" : esc(noteInitials(note.byName))}</span>
+          <div class="note-body">
+            <div class="note-meta">
+              <b>${esc(who)}</b>
+              ${note.legacy ? "" : `<time>${esc(formatDate(note.at) || "")}</time>`}
+              ${mine && canChange() ? `<button type="button" class="note-del" data-note-del="${esc(note._id)}" title="O‘chirish" aria-label="Izohni o‘chirish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></button>` : ""}
+            </div>
+            <p>${esc(note.text)}</p>
+          </div>
+        </article>`;
+    })
+    .join("");
+}
+
+function notesCardHtml(item) {
+  const count = noteEntries(item).length;
+  return `
+    <section class="pass-field notes-card has-ico" style="--fc:#eab308" id="notes-card">
+      <i class="pf-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.pencil}</svg></i>
+      <div class="notes-head">
+        <span>Izohlar</span>
+        <em class="notes-count" id="notes-count">${count ? `${count} ta` : ""}</em>
+      </div>
+      <div class="notes-list" id="notes-list">${noteListHtml(item)}</div>
+      ${canChange() ? `
+      <form class="note-form" id="note-form">
+        <textarea name="text" rows="1" maxlength="2000" placeholder="Yangi izoh yozing… (Ctrl+Enter — yuborish)"></textarea>
+        <button type="submit" class="note-send" title="Qo‘shish" aria-label="Izoh qo‘shish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-5 14-2.5-5.5z"/></svg></button>
+      </form>` : ""}
+    </section>`;
+}
+
+function wireNotesCard(item) {
+  const card = detailBody.querySelector("#notes-card");
+  if (!card) return;
+  const list = card.querySelector("#notes-list");
+  const paint = (notes, legacyNote) => {
+    item.notes = notes;
+    if (legacyNote !== undefined) item.note = legacyNote;
+    const stored = allItems.find((entry) => entry._id === item._id);
+    if (stored) {
+      stored.notes = notes;
+      if (legacyNote !== undefined) stored.note = legacyNote;
+    }
+    list.innerHTML = noteListHtml(item);
+    const count = noteEntries(item).length;
+    card.querySelector("#notes-count").textContent = count ? `${count} ta` : "";
+    list.scrollTop = list.scrollHeight;
+  };
+  list.scrollTop = list.scrollHeight;
+  const form = card.querySelector("#note-form");
+  const area = form?.querySelector("textarea");
+  const grow = () => {
+    if (!area) return;
+    area.style.height = "auto";
+    area.style.height = `${Math.min(area.scrollHeight, 120)}px`;
+    area.style.overflowY = area.scrollHeight > 120 ? "auto" : "hidden";
+  };
+  area?.addEventListener("input", grow);
+  area?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = area.value.trim();
+    if (!text) return;
+    const button = form.querySelector(".note-send");
+    button.disabled = true;
+    const res = await fetch(`/api/applications/${encodeURIComponent(item._id)}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    button.disabled = false;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return alert(data.error || "Izoh saqlanmadi");
+    area.value = "";
+    grow();
+    paint(data.notes || []);
+  });
+  list.addEventListener("click", async (event) => {
+    const del = event.target.closest("[data-note-del]");
+    if (!del) return;
+    if (!confirm("Bu izoh o‘chirilsinmi?")) return;
+    const res = await fetch(`/api/applications/${encodeURIComponent(item._id)}/notes/${encodeURIComponent(del.dataset.noteDel)}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return alert(data.error || "O‘chirilmadi");
+    paint(data.notes || [], data.note);
+  });
 }
 
 function formatPhone(phone) {
@@ -1033,6 +1161,7 @@ function render() {
     ["hired", "Boshqa joyda", tileCount("hired"), "Boshqa ishga kirgan"],
     ["started", "Ishni boshladi", tileCount("started"), "Ish boshlagan"],
     ["left", "Bo‘shagan", tileCount("left"), "Ishlab, ketgan"],
+    ["declined", "Ishlamaydi ekan", tileCount("declined"), "Ishlay olmaydi"],
   ];
   // Eski "Kelmagan" yozuvlari bo'lsa ham ko'rinib tursin
   if (tileCount("missed")) tiles.push(["missed", "Kelmagan", tileCount("missed"), "Eski holat"]);
@@ -1072,6 +1201,7 @@ function render() {
       { value: "hired", label: `Boshqa joyga ishga kirgan (${countStatus("hired")})` },
       { value: "started", label: `Ishni boshladi (${countStatus("started")})` },
       { value: "left", label: `Ishdan bo‘shagan (${countStatus("left")})` },
+      { value: "declined", label: `Ishlamaydi ekan (${countStatus("declined")})` },
       ...(countStatus("missed") ? [{ value: "missed", label: `Kelmagan (${countStatus("missed")})` }] : []),
       { value: "scored", label: `Ball qo‘yilgan (${scoredCount})` },
     ],
@@ -1612,6 +1742,7 @@ async function openDetail(id, silent = false) {
               <button type="button" class="tone-hired" data-call="hired"><i></i>Boshqa joyga ishga kirgan</button>
               <button type="button" class="tone-started" data-call="started"><i></i>Ishni boshladi</button>
               <button type="button" class="tone-left" data-call="left"><i></i>Ishdan bo‘shagan</button>
+              <button type="button" class="tone-declined" data-call="declined"><i></i>Ishlamaydi ekan</button>
             </div>`,
           )}
           ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="hidden" value="${esc(item.interviewAt || "")}" />`)}
@@ -1650,7 +1781,7 @@ async function openDetail(id, silent = false) {
           ${block("Telegram ID", item.telegramUserId)}
         </div>
       </div>
-        ${editCard("note", "Izoh", item.note, `<textarea name="note" rows="4" maxlength="2000" placeholder="Izoh yozing">${esc(item.note || "")}</textarea>`)}
+        ${notesCardHtml(item)}
     </article>
     <article class="contract-page hidden" id="contract-page">
       <div class="contract-head">
@@ -1753,7 +1884,7 @@ async function openDetail(id, silent = false) {
 
   const interviewCard = detailBody.querySelector('[data-edit="interviewStatus"]');
   function paintInterview(card) {
-    const tones = ["tone-none", "tone-expected", "tone-late", "tone-arrived", "tone-missed", "tone-hired", "tone-started", "tone-left"];
+    const tones = ["tone-none", "tone-expected", "tone-late", "tone-arrived", "tone-missed", "tone-hired", "tone-started", "tone-left", "tone-declined"];
     const pass = detailBody.querySelector("#pass-card");
     for (const el of [card, pass].filter(Boolean)) {
       el.classList.remove(...tones);
@@ -1930,6 +2061,8 @@ async function openDetail(id, silent = false) {
       }
     });
   });
+
+  wireNotesCard(item);
 
   detailBody.querySelectorAll(".doc-slot").forEach((slot) => {
     const kind = slot.dataset.doc;
@@ -2771,6 +2904,7 @@ document.querySelector("#export-applications").addEventListener("click", () => {
       columns
         .map(([key]) => {
           if (key === "interviewStatus") return cell(interviewLabels[interviewKey(item.interviewStatus)] || "");
+          if (key === "note") return cell(notesPlainText(item));
           if (key === "score") {
             if (item.assessmentScore != null) return cell(`${item.assessmentScore} / 100`);
             return cell(item.score == null || item.score === "" ? "" : `${item.score} / 10`);
