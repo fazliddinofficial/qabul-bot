@@ -330,7 +330,12 @@ function studentQuestionsFor(answers = {}, session = {}) {
   if (doc === "passport") {
     return withOcr(answers, session, [
       docTypeQuestion(),
-      fileQuestion("passportFront", "Pasportning rasmli sahifasi", true, "Pastidagi <<< belgili qatorlar ham aniq ko'rinsin."),
+      fileQuestion(
+        "passportFront",
+        "Pasportning ochilgan ikki sahifasi",
+        true,
+        "Pasportni ochib, rasmli sahifani va uning ustidagi «Kim tomonidan berilgan» sahifasini birga — bitta rasmga tushiring. Pastidagi <<< belgili qatorlar ham aniq ko'rinsin.",
+      ),
       fileQuestion("passportBack", "Pasportning propiska (ro'yxat) sahifasi", true),
       ...common,
       cardSeriesQuestion("Pasport"),

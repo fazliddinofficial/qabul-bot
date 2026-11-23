@@ -274,8 +274,14 @@ const ISSUE_LABEL = /(berilgan\s*sana\w*|date\s*of\s*issue|issued?\s*on|date\s*o
 const AUTHORITY_LABEL = /(kim\s*tomonidan(\s*berilgan)?|authority|berilgan\s*j\s*o\s*y\w*|place\s*o[fi]\s*iss?ue)/i;
 const LABEL_NOISE = /(BERILGAN|SANASI|DATE|ISSUE|KIM|TOMONIDAN|AUTHORITY|AMAL|QILISH|MUDDATI|EXPIRY|JSHSHIR|PINFL|TUG'?ILGAN|JOYI|PLACE|BIRTH|SHAXSIY|RAQAM|PERSONAL|NO\.?)\b/g;
 
+const BIRTH_LABEL = /(tug['‘’`]?\s?i?l?gan\s*sanas\w*|date\s*of\s*birth)/i;
+
 // Yorliq yonidagi (yoki ostidagi) qiymat: "Berilgan sanasi / Date of issue" → 01.09.2022
 function issuedByLabel(lines) {
+  return dateByLabel(lines, ISSUE_LABEL);
+}
+
+function dateByLabel(lines, ISSUE_LABEL) {
   for (let i = 0; i < lines.length; i += 1) {
     if (!ISSUE_LABEL.test(lines[i])) continue;
     const after = lines[i].slice(lines[i].search(ISSUE_LABEL));
@@ -392,6 +398,19 @@ function pinflAllIn(text) {
   return [...new Set([...String(text || "").replace(/(\d)\s+(?=\d)/g, "$1").matchAll(/\b[3-6]\d{13}\b/g)].map((m) => m[0]))];
 }
 
+// MRZ qatorida belgilar siljib o'qilsa JSHSHIR uzun raqamlar qatori ichida qoladi —
+// har 14 xonali bo'lakni o'z tekshiruv raqami bilan tekshiramiz
+function pinflWindows(text) {
+  const out = new Set();
+  for (const run of String(text || "").match(/\d{14,}/g) || []) {
+    for (let i = 0; i + 14 <= run.length; i += 1) {
+      const w = run.slice(i, i + 14);
+      if (pinflValid(w)) out.add(w);
+    }
+  }
+  return [...out];
+}
+
 // JSHSHIR'ning oxirgi raqami — tekshiruv raqami: dastlabki 13 raqam × 7,3,1,7,3,1… yig'indisining oxirgi raqami
 export function pinflValid(pin) {
   if (!/^[3-6]\d{13}$/.test(String(pin || ""))) return false;
@@ -418,6 +437,7 @@ export async function readDocument({ docType, front, back }) {
     const texts = [];
     let mrz = {};
     const seriesRaws = [];
+    let zoneText = "";
     const main = docType === "passport" ? front : back;
     if (main) {
       const img = await prepare(main);
@@ -431,6 +451,7 @@ export async function readDocument({ docType, front, back }) {
         await recognize(img, { mrzOnly: true, width: 1000, threshold: 140 }),
         await recognize(img, { mrzOnly: true, width: 1800 }),
       ];
+      zoneText = zones.join("\n");
       const parse = docType === "passport" ? parseTd3 : parseTd1;
       for (const zone of zones) {
         const found = parse(mrzLines(zone));
@@ -451,7 +472,7 @@ export async function readDocument({ docType, front, back }) {
     // Ism-familiya: old tomondagi yozuv (apostrof bilan), MRZ bilan solishtiriladi
     // Pasportda ism ikki joyda: o'zbekcha sahifada (TURSUNBOYEV) va inglizcha sahifada (TURSUNBOEV).
     // MRZ bilan mos (Y hisobga olinmaganda) nomzodlardan o'zbekcha — harflari ko'prog'i olinadi
-    const bareY = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "").replace(/Y/g, "");
+    const bareY = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "").replace(/Y(?=[AEOU])/g, "");
     const pickName = (list, fromMrz) => {
       if (!list.length) return "";
       if (!fromMrz) return list[0];
@@ -485,13 +506,19 @@ export async function readDocument({ docType, front, back }) {
     const series = mrz.series || seriesFromText(allText, seriesRaws);
     if (series) out.passportSeries = series;
     if (mrz.birthday) out.birthday = mrz.birthday;
+    // MRZ'dan chiqmasa — "Tug'ilgan sanasi / Date of birth" yorlig'i yonidagi sana (JSHSHIR bilan quyida tekshiriladi)
+    const birthLabel = out.birthday ? "" : dateByLabel(allText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean), BIRTH_LABEL);
 
     // JSHSHIR: o'z tekshiruv raqami (7-3-1) to'g'ri bo'lsa, tug'ilgan sana bilan mos bo'lsa yoki MRZ va matnda bir xil bo'lsa
     const pinTexts = pinflAllIn(allText);
     const candidates = [mrz.pinflMrz, ...pinTexts, mrz.pinflMrzWeak].filter(Boolean);
+    const knownBirthday = out.birthday || birthLabel;
+    // Uzun raqamlar ichidan topilgani faqat tug'ilgan sanaga mos kelsa olinadi
+    const windowPin = knownBirthday ? pinflWindows(`${zoneText}\n${allText}`).find((p) => pinflMatchesBirthday(p, knownBirthday)) : "";
     const pin =
-      candidates.find((p) => pinflValid(p) && (!out.birthday || pinflMatchesBirthday(p, out.birthday))) ||
-      candidates.find((p) => pinflMatchesBirthday(p, out.birthday)) ||
+      candidates.find((p) => pinflValid(p) && (!knownBirthday || pinflMatchesBirthday(p, knownBirthday))) ||
+      windowPin ||
+      candidates.find((p) => pinflMatchesBirthday(p, knownBirthday)) ||
       (mrz.pinflMrz && pinTexts.includes(mrz.pinflMrz) ? mrz.pinflMrz : "");
     if (pin) out.jshshir = pin;
     if (!out.birthday && pin) {
@@ -501,6 +528,7 @@ export async function readDocument({ docType, front, back }) {
       const century = { 3: 1900, 4: 1900, 5: 2000, 6: 2000 }[pin[0]];
       if (century) out.birthday = `${dd}.${mm}.${century + Number(yy)}`;
     }
+    if (!out.birthday && birthLabel) out.birthday = birthLabel;
 
     // Berilgan sana va bergan organ: avval yorliq yonidan, topilmasa butun matndan
     const allLines = allText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -513,7 +541,13 @@ export async function readDocument({ docType, front, back }) {
       issued = dates.filter(plausibleIssue).pop() || "";
     }
     if (issued) out.passportIssued = issued;
-    const issuer = authorityByLabel(allLines) || issuerInStrict(allText);
+    let issuer = authorityByLabel(allLines) || issuerInStrict(allText);
+    // Pasport daftarchasida "Kim tomonidan berilgan" rasmli sahifaning ustidagi sahifada bo'ladi.
+    // Rasmli sahifada topilmasa — ikkinchi yuborilgan rasmdan ham qidiramiz
+    if (!issuer && docType === "passport" && back) {
+      const backLines = (await recognizeTopVariants(await prepare(back), "passport")).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      issuer = issuerAfterKim(backLines);
+    }
     if (issuer) out.passportIssuer = issuer;
     return out;
   });
