@@ -57,8 +57,11 @@ const SCRIPT_KEYS = ["SANA", "FISH", "HUJJAT", "PASPORT_BERGAN", "MANZIL", "KURS
 export function templateValues(item, script = "cyr") {
   const base = rawTemplateValues(item);
   const out = { ...base };
-  for (const key of SCRIPT_KEYS) out[key] = toScript(base[key], script);
-  if (script === "cyr") {
+  // O‘girish o‘chirilgan bo‘lsa — matnlar o‘quvchi yozganidek qoladi
+  if (item.transliterate !== false) {
+    for (const key of SCRIPT_KEYS) out[key] = toScript(base[key], script);
+  }
+  if (script === "cyr" && item.transliterate !== false) {
     out.FISH = cyrName(item) || out.FISH;
     out.MANZIL = cyrAddress(item) || out.MANZIL;
   }

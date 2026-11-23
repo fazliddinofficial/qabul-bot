@@ -212,11 +212,16 @@ function fill(value, blank = "____________________") {
 }
 
 // Shartnoma kirillda — lotincha yozilgan ism/manzil kirillga o‘giriladi (panelda qo‘lda tuzatilgani bo‘lsa, o‘sha)
+// O‘girish o‘chirilgan bo‘lsa — qo‘lda yozilgan kirill varianti yoki o‘quvchi yozganidek
 export function cyrName(data) {
-  return String(data.fullNameCyr || "").trim() || toScript(data.fullName, "cyr");
+  const manual = String(data.fullNameCyr || "").trim();
+  if (data.transliterate === false) return manual || String(data.fullName || "");
+  return manual || toScript(data.fullName, "cyr");
 }
 export function cyrAddress(data) {
-  return String(data.addressCyr || "").trim() || toScript(data.address, "cyr");
+  const manual = String(data.addressCyr || "").trim();
+  if (data.transliterate === false) return manual || String(data.address || "");
+  return manual || toScript(data.address, "cyr");
 }
 
 export function buildStudentContractHtml(data) {

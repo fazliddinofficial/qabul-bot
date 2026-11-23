@@ -171,6 +171,8 @@ const studentContractSchema = new mongoose.Schema(
     // Kirill shartnoma uchun qo‘lda tuzatilgan ism/manzil (bo‘sh bo‘lsa avtomatik o‘giriladi)
     fullNameCyr: { type: String, default: "" },
     addressCyr: { type: String, default: "" },
+    // Ism/manzilni shartnoma yozuviga (kirill/lotin) avtomatik o‘girish — panelda yoqib/o‘chiriladi
+    transliterate: { type: Boolean, default: true },
     // Shartnoma qaysi hujjat bilan: id (ID karta) | passport | birth (tug'ilganlik guvohnomasi)
     docType: { type: String, default: "" },
     note: { type: String, default: "" },
@@ -1460,9 +1462,11 @@ export async function getStudentContract(id, { markSeen = false } = {}) {
 
 export async function updateStudentContract(id, input) {
   if (!mongoose.isValidObjectId(id)) return null;
+  const set = studentText(input || {});
+  if (input && input.transliterate !== undefined) set.transliterate = input.transliterate === true || input.transliterate === "on" || input.transliterate === "true";
   return StudentContract.findOneAndUpdate(
     { _id: id, ownerToken: ownerToken() },
-    { $set: studentText(input || {}) },
+    { $set: set },
     { new: true },
   )
     .select(studentWithoutFiles)
