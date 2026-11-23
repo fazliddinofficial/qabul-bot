@@ -144,3 +144,5 @@ dist
 *.db
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+.ocr-cache/
+*.traineddata

@@ -322,16 +322,16 @@ function studentQuestionsFor(answers = {}, session = {}) {
         "❌ Guvohnomani bergan organni yozing. Misol: Jizzax shahar FHDYo bo'limi",
         capitalizePlace,
       ),
-      jshshirQuestion("Yangi guvohnomalarda yozilgan bo'ladi.", true),
+      jshshirQuestion("Guvohnomada yozilgan (14 ta raqam)."),
       addressQuestion(),
       phoneQuestion(),
     ];
   }
   if (doc === "passport") {
-    return [
+    return withOcr(answers, session, [
       docTypeQuestion(),
-      fileQuestion("passportFront", "Pasportning rasmli sahifasi", true),
-      fileQuestion("passportBack", "Pasportning propiska (ro'yxat) sahifasi", false),
+      fileQuestion("passportFront", "Pasportning rasmli sahifasi", true, "Pastidagi <<< belgili qatorlar ham aniq ko'rinsin."),
+      fileQuestion("passportBack", "Pasportning propiska (ro'yxat) sahifasi", true),
       ...common,
       cardSeriesQuestion("Pasport"),
       issuedQuestion("Pasport", "05.02.2020"),
@@ -346,12 +346,12 @@ function studentQuestionsFor(answers = {}, session = {}) {
       jshshirQuestion("Pasportning rasmli sahifasida yozilgan."),
       addressQuestion(),
       phoneQuestion(),
-    ];
+    ]);
   }
-  return [
+  return withOcr(answers, session, [
     docTypeQuestion(),
-    fileQuestion("passportFront", "ID karta old tomoni", true),
-    fileQuestion("passportBack", "ID karta orqa tomoni", true),
+    fileQuestion("passportFront", "ID karta old tomoni", true, "Ism-familiyangiz aniq ko'rinsin."),
+    fileQuestion("passportBack", "ID karta orqa tomoni", true, "Pastidagi <<< belgili qatorlar ham aniq ko'rinsin."),
     ...common,
     cardSeriesQuestion("ID karta"),
     issuedQuestion("ID karta", "05.02.2025"),
@@ -366,7 +366,60 @@ function studentQuestionsFor(answers = {}, session = {}) {
     jshshirQuestion("ID karta orqa tomonida yozilgan."),
     addressQuestion(),
     phoneQuestion(),
-  ];
+  ]);
+}
+
+// ---------- Hujjat rasmidan avtomatik o'qilgan ma'lumotlar ----------
+export const OCR_FIELDS = [
+  ["fullName", "👤 F.I.Sh"],
+  ["birthday", "🎂 Tug'ilgan sana"],
+  ["passportSeries", "🔤 Seriya va raqam"],
+  ["passportIssued", "📅 Berilgan sana"],
+  ["passportIssuer", "🏛 Bergan organ"],
+  ["jshshir", "🔢 JSHSHIR"],
+];
+const OK_TEXT = "✅ To'g'ri";
+
+function ocrFound(session) {
+  return OCR_FIELDS.filter(([key]) => session?.ocr?.[key]);
+}
+
+// Topilgan qiymat bilan savol: "✅ To'g'ri" — o'sha qiymat, yoki o'quvchi to'g'risini yozadi
+function prefilled(question, value) {
+  return {
+    ...question,
+    prefill: value,
+    text: `${question.text}\n\n🔎 Hujjatdan topildi: ${value}\nTo'g'ri bo'lsa «${OK_TEXT}» tugmasini bosing, aks holda to'g'risini yozing.`,
+    check(message, ctx) {
+      if (String(message?.text || "").trim() === OK_TEXT) return { ok: true, value };
+      return question.check(message, ctx);
+    },
+  };
+}
+
+function withOcr(answers, session, list) {
+  const found = ocrFound(session);
+  if (!found.length) return list;
+  const confirm = choiceQuestion(
+    "ocrConfirm",
+    "Hujjatdan o'qilgan",
+    `🔎 Hujjatingizdan quyidagilar o'qildi:\n\n${found.map(([key, label]) => `${label}: ${session.ocr[key]}`).join("\n")}\n\nHammasi to'g'rimi?${
+      found.length < OCR_FIELDS.length ? "\n(Topilmaganlari keyin so'raladi.)" : ""
+    }`,
+    [
+      { value: "accept", label: "✅ Hammasi to'g'ri", extra: Object.fromEntries(found.map(([key]) => [key, session.ocr[key]])) },
+      { value: "fix", label: "✏️ Tuzatish" },
+    ],
+  );
+  const lastPhoto = list.map((q) => q.kind).lastIndexOf("file");
+  const out = [];
+  list.forEach((question, index) => {
+    const value = session.ocr[question.id];
+    if (value && answers.ocrConfirm === "accept") return; // tasdiqlangan — qayta so'ralmaydi
+    out.push(value && answers.ocrConfirm === "fix" ? prefilled(question, value) : question);
+    if (index === lastPhoto) out.push(confirm);
+  });
+  return out;
 }
 
 const FLOWS = {
@@ -391,6 +444,9 @@ function questionsOf(session) {
 }
 
 function keyboardFor(question) {
+  if (question.prefill) {
+    return { reply_markup: { keyboard: [[{ text: OK_TEXT }]], resize_keyboard: true, one_time_keyboard: true } };
+  }
   if (question.kind === "contact") return { reply_markup: phoneKeyboard };
   if (question.kind === "choice") {
     return {
@@ -426,13 +482,18 @@ export function contractSummary(answers, questions = contractQuestions) {
     .map((q) => `${answers[q.id] ? "✅" : "➖"} ${q.label}`)
     .join("\n");
   const rows = questions
-    .filter((q) => q.kind !== "file" && !(q.kind === "choice" && answers[q.id] === "other"))
+    .filter((q) => q.kind !== "file" && q.id !== "ocrConfirm" && !(q.kind === "choice" && answers[q.id] === "other"))
     .map((q) => {
       const value = q.kind === "choice" ? q.options.find((o) => o.value === answers[q.id])?.label : answers[q.id];
       return `<b>${q.label}:</b> ${escapeHtml(value || "—")}`;
     })
     .join("\n");
-  return `📋 <b>Ma'lumotlaringizni tekshiring</b>\n\n${files}\n\n${rows}\n\nHammasi to'g'rimi?`;
+  // Hujjatdan o'qilib tasdiqlangan maydonlar savol bo'lib so'ralmagan — ularni ham ko'rsatamiz
+  const asked = new Set(questions.map((q) => q.id));
+  const fromDoc = OCR_FIELDS.filter(([key]) => !asked.has(key) && answers[key])
+    .map(([key, label]) => `<b>${label.replace(/^\S+\s/, "")}:</b> ${escapeHtml(answers[key])}`)
+    .join("\n");
+  return `📋 <b>Ma'lumotlaringizni tekshiring</b>\n\n${files}\n\n${fromDoc ? `${fromDoc}\n` : ""}${rows}\n\nHammasi to'g'rimi?`;
 }
 
 function newSession(flow) {
@@ -442,7 +503,26 @@ function newSession(flow) {
 }
 
 // saveContract / notify — { staff: fn, student: fn }
-export function registerContractFlow(bot, { sessions, ack, saveContract, notify, listCourses }) {
+export function registerContractFlow(bot, { sessions, ack, saveContract, notify, listCourses, readDocument }) {
+  // ID karta / pasportning oxirgi rasmi kelgach — rasmlardan ma'lumotlarni o'qib olamiz
+  async function runOcr(ctx, session) {
+    session.ocr = {};
+    const { docType, passportFront, passportBack } = session.answers;
+    const usable = (file) => (file && file.kind !== "pdf" ? file : null);
+    if (!readDocument || !usable(passportFront)) return;
+    await ctx.reply("⏳ Hujjatingiz o'qilmoqda, 10–20 soniya kuting…", { reply_markup: { remove_keyboard: true } });
+    try {
+      await ctx.sendChatAction("typing").catch(() => {});
+      session.ocr = (await readDocument({ docType, front: usable(passportFront), back: usable(passportBack) })) || {};
+    } catch (error) {
+      console.error("Hujjat o'qilmadi:", error?.message || error);
+      session.ocr = {};
+    }
+    if (!ocrFound(session).length) {
+      await ctx.reply("ℹ️ Rasmdan avtomatik o'qib bo'lmadi — ma'lumotlarni o'zingiz yozasiz.");
+    }
+  }
+
   async function startSession(flow) {
     const session = newSession(flow);
     if (flow === "student" && listCourses) {
@@ -541,6 +621,10 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify,
     session.answers[question.id] = result.value;
     if (result.extra) Object.assign(session.answers, result.extra);
     session.step += 1;
+    const docType = session.answers.docType;
+    if (session.flow === "student" && question.id === "passportBack" && (docType === "id" || docType === "passport") && !session.ocr) {
+      await runOcr(ctx, session);
+    }
     questions = questionsOf(session);
     session.questions = questions;
     if (session.step < questions.length) return ask(ctx, session);

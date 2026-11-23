@@ -11,6 +11,16 @@ import {
 } from "./questions.js";
 import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission, saveStudentContract, listStudentCourses } from "./db.js";
 import { registerContractFlow } from "./contract.js";
+import { readDocument as readDocumentImages, warmUpOcr } from "./ocr.js";
+
+// Telegram'dagi rasmni yuklab olib, ID karta / pasportdan ma'lumotlarni o'qiydi (serverning o'zida)
+async function telegramImage(file) {
+  if (!file?.fileId) return null;
+  const link = await bot.telegram.getFileLink(file.fileId);
+  const res = await fetch(String(link), { signal: AbortSignal.timeout(20000) });
+  if (!res.ok) return null;
+  return Buffer.from(await res.arrayBuffer());
+}
 import { startWeb } from "./web/server.js";
 import { CronosExpression, CronosTask } from "cronosjs";
 
@@ -270,6 +280,8 @@ const handleContractMessage = registerContractFlow(bot, {
   saveContract: { staff: saveContractSubmission, student: saveStudentContract },
   listCourses: async () =>
     (await listStudentCourses({ activeOnly: true })).map((course) => ({ id: String(course._id), name: course.name })),
+  readDocument: async ({ docType, front, back }) =>
+    readDocumentImages({ docType, front: await telegramImage(front), back: await telegramImage(back) }),
   notify: {
     staff: async (answers, result) => {
       if (!CHANNEL_OR_GROUP_TOKEN) return;
@@ -717,6 +729,7 @@ if (process.env.WEB_ONLY === "1") {
   console.log("🌐 Faqat panel rejimi (WEB_ONLY=1): Telegram bot ishga tushirilmadi");
 } else {
   runBot();
+  warmUpOcr();
   console.log("🤖 Bot is running!");
 }
 
