@@ -935,7 +935,7 @@ function crmModalHtml(item, options) {
 }
 
 function wireCrmButton(item) {
-  const open = detailBody.querySelector("#open-crm");
+  const open = document.querySelector("#detail-crm #open-crm");
   if (!open) return;
   open.addEventListener("click", async () => {
     open.disabled = true;
@@ -997,7 +997,7 @@ function wireCrmButton(item) {
       item.crmTransfer = data.transfer;
       const stored = allItems.find((entry) => entry._id === item._id);
       if (stored) stored.crmTransfer = data.transfer;
-      const holder = detailBody.querySelector("#open-crm");
+      const holder = document.querySelector("#detail-crm #open-crm");
       if (holder) holder.outerHTML = crmButtonHtml(item);
       form.innerHTML = `
         <div class="crm-done">
@@ -1906,7 +1906,6 @@ async function openDetail(id, silent = false) {
           </div>
           <div class="launch-row">
             <button type="button" class="contract-launch" id="open-contract"><svg viewBox="0 0 24 24" aria-hidden="true">${svgPaths.file}</svg>Shartnomani ko‘rish</button>
-            ${crmButtonHtml(item)}
           </div>
           ${editCard(
             "interviewStatus",
@@ -2025,6 +2024,8 @@ async function openDetail(id, silent = false) {
   const detailFav = document.querySelector("#detail-fav");
   detailFav.classList.toggle("on", Boolean(item.favorite));
   detailFav.dataset.fav = item._id;
+  // metafor’ga o‘tkazish — sarlavhada, yurakchaning chap tomonida
+  document.querySelector("#detail-crm").innerHTML = crmButtonHtml(item);
   detail.showModal();
 
   const draft = {

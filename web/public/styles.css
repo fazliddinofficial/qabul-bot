@@ -3644,3 +3644,16 @@ dialog#students-dialog {
   .crm-grid { grid-template-columns: 1fr; }
   .crm-sends li { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* metafor tugmasi sarlavhada (yurakcha yonida) */
+.detail-crm { display: inline-flex; }
+.detail-crm:empty { display: none; }
+.detail-head .crm-launch {
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.22);
+}
+.detail-head .crm-launch.done { box-shadow: inset 0 0 0 1px color-mix(in srgb, #10b981 45%, transparent); }
+.detail-head .crm-launch svg { width: 14px; height: 14px; }
