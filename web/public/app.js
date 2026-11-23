@@ -147,7 +147,7 @@ function closeDateTimePicker(cancelled = true) {
   if (cancelled) onClose?.();
 }
 
-function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
+function openDateTimePicker(anchor, value, { onPick, onClose, withTime = true } = {}) {
   closeDateTimePicker(false);
   const pad = (n) => String(n).padStart(2, "0");
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -163,7 +163,7 @@ function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
   for (let m = 8 * 60; m <= 20 * 60; m += 30) slots.push(`${pad(Math.floor(m / 60))}:${pad(m % 60)}`);
 
   const pop = document.createElement("div");
-  pop.className = "dtp";
+  pop.className = withTime ? "dtp" : "dtp dtp-dateonly";
   pop.setAttribute("role", "dialog");
   pop.setAttribute("aria-label", "Sana va vaqtni tanlang");
   // Modal <dialog> ichida bo‘lsa, oynani o‘sha dialogga qo‘shamiz — aks holda dialog orqasida qolib ko‘rinmaydi
@@ -211,11 +211,11 @@ function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
           <button type="button" data-quick="1">Ertaga</button>
         </div>
       </div>
-      <div class="dtp-time">
+      ${withTime ? `<div class="dtp-time">
         <div class="dtp-time-head">Vaqt</div>
         <div class="dtp-slots">${timeBtns}</div>
         <label class="dtp-exact">Aniq vaqt <input type="time" step="300" value="${selTime}" /></label>
-      </div>
+      </div>` : ""}
       <div class="dtp-foot">
         <span class="dtp-sum">${summary()}</span>
         <button type="button" class="dtp-clear">Tozalash</button>
@@ -268,7 +268,7 @@ function openDateTimePicker(anchor, value, { onPick, onClose } = {}) {
     } else if (t.classList.contains("dtp-ok")) {
       if (!selDate) return;
       closeDateTimePicker(false);
-      onPick?.(`${selDate}T${selTime || "10:00"}`);
+      onPick?.(withTime ? `${selDate}T${selTime || "10:00"}` : selDate);
       return;
     }
     const keep = pop.querySelector(".dtp-slots")?.scrollTop;
@@ -1498,7 +1498,7 @@ async function openDetail(id, silent = false) {
             </div>`,
           )}
           ${editCard("interviewAt", "Suhbat vaqti", prettyStamp(item.interviewAt), `<input name="interviewAt" type="hidden" value="${esc(item.interviewAt || "")}" />`)}
-          ${editCard("workStart", "Ish boshlash", prettyStamp(item.workStart), `<input name="workStart" type="date" value="${esc(item.workStart || "")}" />`)}
+          ${editCard("workStart", "Ish boshlash", prettyStamp(item.workStart), `<input name="workStart" type="hidden" value="${esc(item.workStart || "")}" />`)}
           ${editCard("agreedSalary", "Kelishilgan oylik", formatSum(item.agreedSalary), `<input name="agreedSalary" value="${esc(formatSum(item.agreedSalary))}" placeholder="5 000 000" />`)}
           <button type="button" class="pass-field has-ico score-launch" id="open-assess"${fieldStyle("score")} title="20 ta pedagogik savol bo‘yicha baholash">
             ${fieldIcon("score")}
@@ -1752,9 +1752,11 @@ async function openDetail(id, silent = false) {
           button.classList.toggle("active", button.dataset.call === draft.interviewStatus);
         });
       }
-      if (card.dataset.edit === "interviewAt") {
-        const hidden = card.querySelector('input[name="interviewAt"]');
-        openDateTimePicker(card, hidden?.value || draft.interviewAt, {
+      if (card.dataset.edit === "interviewAt" || card.dataset.edit === "workStart") {
+        const key = card.dataset.edit;
+        const hidden = card.querySelector(`input[name="${key}"]`);
+        openDateTimePicker(card, hidden?.value || draft[key], {
+          withTime: key === "interviewAt",
           onPick(next) {
             if (!hidden) return;
             hidden.value = next;

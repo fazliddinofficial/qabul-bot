@@ -2832,8 +2832,10 @@ button.acard {
 }
 
 /* ============ Sana + vaqt tanlash oynasi ============ */
-.edit-card[data-edit="interviewAt"].editing .edit-view { visibility: visible !important; }
-.edit-card[data-edit="interviewAt"].editing .edit-box { display: none !important; }
+.edit-card[data-edit="interviewAt"].editing .edit-view,
+.edit-card[data-edit="workStart"].editing .edit-view { visibility: visible !important; }
+.edit-card[data-edit="interviewAt"].editing .edit-box,
+.edit-card[data-edit="workStart"].editing .edit-box { display: none !important; }
 
 .dtp {
   position: fixed;
@@ -2852,6 +2854,7 @@ button.acard {
   overflow: hidden;
   animation: dtp-in 0.12s ease-out;
 }
+.dtp.dtp-dateonly { grid-template-columns: auto; grid-template-areas: "cal" "foot"; }
 @keyframes dtp-in { from { opacity: 0; transform: translateY(-4px); } }
 .dtp button {
   background: none;
@@ -2973,6 +2976,7 @@ button.acard {
 
 @media (max-width: 560px) {
   .dtp { grid-template-columns: 1fr; grid-template-areas: "cal" "time" "foot"; }
+  .dtp.dtp-dateonly { grid-template-areas: "cal" "foot"; }
   .dtp-week, .dtp-grid { grid-template-columns: repeat(7, 1fr); }
   .dtp-time { border-left: 0; border-top: 1px solid var(--line); }
   .dtp-slots { grid-template-columns: repeat(4, 1fr); max-height: 108px; }
