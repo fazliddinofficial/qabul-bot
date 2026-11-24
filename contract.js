@@ -327,9 +327,21 @@ function studentQuestionsFor(answers = {}, session = {}) {
       phoneQuestion(),
     ];
   }
+  return withOcr(answers, session, [
+    docTypeQuestion(),
+    ...identityFiles(doc),
+    ...common,
+    ...identityDetails(doc),
+    addressQuestion(),
+    phoneQuestion(),
+  ]);
+}
+
+// ID karta / pasport: rasmlar (OCR shulardan o'qiydi) va qo'lda tekshiriladigan maydonlar.
+// O'quvchi ham, xodim (o'qituvchi) ham shu savollardan foydalanadi.
+function identityFiles(doc) {
   if (doc === "passport") {
-    return withOcr(answers, session, [
-      docTypeQuestion(),
+    return [
       fileQuestion(
         "passportFront",
         "Pasportning ochilgan ikki sahifasi",
@@ -337,7 +349,17 @@ function studentQuestionsFor(answers = {}, session = {}) {
         "Pasportni ochib, rasmli sahifani va uning ustidagi «Kim tomonidan berilgan» sahifasini birga — bitta rasmga tushiring. Pastidagi <<< belgili qatorlar ham aniq ko'rinsin.",
       ),
       fileQuestion("passportBack", "Pasportning propiska (ro'yxat) sahifasi", true),
-      ...common,
+    ];
+  }
+  return [
+    fileQuestion("passportFront", "ID karta old tomoni", true, "Ism-familiyangiz aniq ko'rinsin."),
+    fileQuestion("passportBack", "ID karta orqa tomoni", true, "Pastidagi <<< belgili qatorlar ham aniq ko'rinsin."),
+  ];
+}
+
+function identityDetails(doc) {
+  if (doc === "passport") {
+    return [
       cardSeriesQuestion("Pasport"),
       issuedQuestion("Pasport", "05.02.2020"),
       textQuestion(
@@ -349,15 +371,9 @@ function studentQuestionsFor(answers = {}, session = {}) {
         capitalizePlace,
       ),
       jshshirQuestion("Pasportning rasmli sahifasida yozilgan."),
-      addressQuestion(),
-      phoneQuestion(),
-    ]);
+    ];
   }
-  return withOcr(answers, session, [
-    docTypeQuestion(),
-    fileQuestion("passportFront", "ID karta old tomoni", true, "Ism-familiyangiz aniq ko'rinsin."),
-    fileQuestion("passportBack", "ID karta orqa tomoni", true, "Pastidagi <<< belgili qatorlar ham aniq ko'rinsin."),
-    ...common,
+  return [
     cardSeriesQuestion("ID karta"),
     issuedQuestion("ID karta", "05.02.2025"),
     textQuestion(
@@ -369,6 +385,29 @@ function studentQuestionsFor(answers = {}, session = {}) {
       capitalizePlace,
     ),
     jshshirQuestion("ID karta orqa tomonida yozilgan."),
+  ];
+}
+
+// Xodim (o'qituvchi): ID karta yoki pasport rasmi -> avtomatik o'qiladi -> tasdiqlanadi,
+// keyin diplom/sertifikat va o'qilmagan maydonlar so'raladi (o'quvchi shartnomasi kabi).
+const STAFF_DOC_TYPES = DOC_TYPES.filter((type) => type.value !== "birth");
+
+function staffQuestionsFor(answers = {}, session = {}) {
+  const doc = answers.docType === "passport" ? "passport" : "id";
+  return withOcr(answers, session, [
+    choiceQuestion(
+      "docType",
+      "Hujjat",
+      "🪪 Qaysi hujjatingiz bilan shartnoma tuzasiz?\nPastdagi tugmalardan birini tanlang.",
+      STAFF_DOC_TYPES,
+    ),
+    ...identityFiles(doc),
+    fileQuestion("diploma", "Diplom", false),
+    fileQuestion("diplomaAppendix", "Diplom ilovasi", false),
+    fileQuestion("certificate", "Sertifikat", false),
+    fullNameQuestion(),
+    birthdayQuestion(),
+    ...identityDetails(doc),
     addressQuestion(),
     phoneQuestion(),
   ]);
@@ -416,7 +455,9 @@ function withOcr(answers, session, list) {
       { value: "fix", label: "✏️ Tuzatish" },
     ],
   );
-  const lastPhoto = list.map((q) => q.kind).lastIndexOf("file");
+  // Tasdiqlash — hujjat rasmlaridan keyin (xodimda diplom/sertifikatdan oldin)
+  const docBack = list.findIndex((q) => q.id === "passportBack");
+  const lastPhoto = docBack >= 0 ? docBack : list.map((q) => q.kind).lastIndexOf("file");
   const out = [];
   list.forEach((question, index) => {
     const value = session.ocr[question.id];
@@ -429,7 +470,7 @@ function withOcr(answers, session, list) {
 
 const FLOWS = {
   staff: {
-    questions: contractQuestions,
+    questions: staffQuestionsFor,
     title: "📄 <b>Xodim shartnomasi</b>",
   },
   student: {
@@ -627,7 +668,8 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify,
     if (result.extra) Object.assign(session.answers, result.extra);
     session.step += 1;
     const docType = session.answers.docType;
-    if (session.flow === "student" && question.id === "passportBack" && (docType === "id" || docType === "passport") && !session.ocr) {
+    // O'quvchi va xodim (o'qituvchi) — ikkalasida ham ID karta/pasport rasmidan avtomatik o'qiymiz
+    if (question.id === "passportBack" && (docType === "id" || docType === "passport") && !session.ocr) {
       await runOcr(ctx, session);
     }
     questions = questionsOf(session);
