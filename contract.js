@@ -441,13 +441,33 @@ function prefilled(question, value) {
   };
 }
 
+// Familiya va ism o'qilgan, lekin otasining ismi o'qilmagan bo'lsa — faqat otasining ismi so'raladi
+function partialName(session) {
+  const ocr = session?.ocr || {};
+  return !ocr.fullName && ocr.surname && ocr.given ? `${ocr.surname} ${ocr.given}` : "";
+}
+
+function patronymicOnlyQuestion(namePart) {
+  return textQuestion(
+    "fullName",
+    "F.I.Sh",
+    `✍️ Familiya va ismingiz: ${namePart}\nEndi otangizning ismini pasportdagidek yozing.\nMisol: Ixtiyor o'g'li yoki Bobur qizi`,
+    (v) => v.split(" ").length >= 1 && v.split(" ").length <= 4 && /^[^\d]+$/.test(v),
+    "❌ Otangizning ismini raqamsiz yozing. Misol: Ixtiyor o'g'li",
+    (v) => capitalizeName(`${namePart} ${v}`),
+  );
+}
+
 function withOcr(answers, session, list) {
   const found = ocrFound(session);
-  if (!found.length) return list;
+  const namePart = partialName(session);
+  if (!found.length && !namePart) return list;
+  const rows = found.map(([key, label]) => `${label}: ${session.ocr[key]}`);
+  if (namePart) rows.unshift(`👤 Familiya, ism: ${namePart}`);
   const confirm = choiceQuestion(
     "ocrConfirm",
     "Hujjatdan o'qilgan",
-    `🔎 Hujjatingizdan quyidagilar o'qildi:\n\n${found.map(([key, label]) => `${label}: ${session.ocr[key]}`).join("\n")}\n\nHammasi to'g'rimi?${
+    `🔎 Hujjatingizdan quyidagilar o'qildi:\n\n${rows.join("\n")}\n\nHammasi to'g'rimi?${
       found.length < OCR_FIELDS.length ? "\n(Topilmaganlari keyin so'raladi.)" : ""
     }`,
     [
@@ -462,6 +482,10 @@ function withOcr(answers, session, list) {
   list.forEach((question, index) => {
     const value = session.ocr[question.id];
     if (value && answers.ocrConfirm === "accept") return; // tasdiqlangan — qayta so'ralmaydi
+    if (question.id === "fullName" && namePart && answers.ocrConfirm === "accept") {
+      out.push(patronymicOnlyQuestion(namePart));
+      return;
+    }
     out.push(value && answers.ocrConfirm === "fix" ? prefilled(question, value) : question);
     if (index === lastPhoto) out.push(confirm);
   });
@@ -564,7 +588,7 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify,
       console.error("Hujjat o'qilmadi:", error?.message || error);
       session.ocr = {};
     }
-    if (!ocrFound(session).length) {
+    if (!ocrFound(session).length && !partialName(session)) {
       await ctx.reply("ℹ️ Rasmdan avtomatik o'qib bo'lmadi — ma'lumotlarni o'zingiz yozasiz.");
     }
   }

@@ -38,7 +38,54 @@ async function prepare(buffer) {
   const img = sharp(buffer, { failOn: "none" }).rotate();
   const meta = await img.metadata();
   const width = meta.width && meta.width < 1600 ? 1800 : Math.min(meta.width || 1800, 2400);
-  return img.resize({ width }).grayscale().png().toBuffer();
+  const gray = await img.resize({ width }).grayscale().png().toBuffer();
+  return deskew(gray);
+}
+
+// Telefonda qiyshiq tushirilgan rasm: matn qatorlari gorizontal bo'ladigan burchakni topib, to'g'rilaymiz.
+// Usul: kichraytirilgan rasmni har xil burchakka burib, qatorlar bo'yicha "siyoh" yig'indisi eng keskin bo'lganini tanlaymiz.
+async function deskew(gray) {
+  // "Siyoh" — atrofidan sezilarli qoraroq piksel (mahalliy o'rtachaga nisbatan): stol, ramka, soya kabi
+  // katta bir xil joylar hisobga kirmaydi, faqat harflar qoladi
+  const small = sharp(gray).resize({ width: 640 }).grayscale();
+  const { data: px, info } = await small.clone().raw().toBuffer({ resolveWithObject: true });
+  const { data: mean } = await small.clone().blur(6).raw().toBuffer({ resolveWithObject: true });
+  const data = Buffer.alloc(info.width * info.height);
+  for (let i = 0; i < data.length; i += 1) data[i] = mean[i * info.channels] - px[i * info.channels] > 22 ? 255 : 0;
+  info.channels = 1;
+  const score = async (angle) => {
+    const rotated = angle
+      ? await sharp(data, { raw: { width: info.width, height: info.height, channels: 1 } })
+          .rotate(angle, { background: "#000000" })
+          .raw()
+          .toBuffer({ resolveWithObject: true })
+      : { data, info };
+    const { width, height } = rotated.info;
+    const channels = rotated.info.channels;
+    let total = 0;
+    for (let y = 0; y < height; y += 1) {
+      let row = 0;
+      for (let x = 0; x < width; x += 1) if (rotated.data[(y * width + x) * channels] > 127) row += 1;
+      total += row * row;
+    }
+    return total;
+  };
+  const base = await score(0);
+  let best = { angle: 0, value: base };
+  for (let angle = -12; angle <= 12; angle += 1) {
+    if (!angle) continue;
+    const value = await score(angle);
+    if (value > best.value) best = { angle, value };
+  }
+  for (const step of [-0.5, 0.5, -0.25, 0.25]) {
+    const angle = best.angle + step;
+    const value = await score(angle);
+    if (value > best.value) best = { angle, value };
+  }
+  // Juda kichik og'ish yoki sezilarsiz yaxshilanish — rasmga tegmaymiz
+  if (Math.abs(best.angle) < 0.5 || best.value < base * 1.04) return gray;
+  if (process.env.OCR_DEBUG) console.error(`[ocr] deskew ${best.angle}°`);
+  return sharp(gray).rotate(best.angle, { background: "#ffffff" }).png().toBuffer();
 }
 
 const letterCount = (text) => (String(text || "").match(/[A-Za-z]/g) || []).length;
@@ -57,13 +104,15 @@ async function recognizeTopVariants(img, docType) {
   const meta = await sharp(img).metadata();
   // ID karta orqasida MRZ pastki ~38%, pasport sahifasida ~22%
   // Pasport ko'pincha ikki sahifa (yuqorida "Kim tomonidan berilgan", pastda rasmli sahifa) — MRZ eng pastda
-  const share = docType === "passport" ? 0.9 : 0.62;
+  const share = docType === "front" ? 1 : docType === "passport" ? 0.9 : 0.62;
   const topPart = () => sharp(img).extract({ left: 0, top: 0, width: meta.width, height: Math.round(meta.height * share) });
   const variants = [
     { make: () => topPart(), psm: "3" },
     { make: () => topPart().threshold(100), psm: "11" },
     { make: () => topPart().threshold(120), psm: "3" },
   ];
+  // ID kartaning old tomoni (rasm ustida naqsh): kontrastni cho'zib, alohida so'zlar rejimida ham o'qiymiz
+  if (docType === "front") variants.push({ make: () => topPart().normalize().sharpen(), psm: "11" });
   const texts = [];
   for (const variant of variants) {
     texts.push(await recognize(await variant.make().png().toBuffer(), { psm: variant.psm }));
@@ -158,7 +207,10 @@ function parseTd1(lines) {
   const pin = digits(l1.slice(15, 30)).match(/\d{14}/)?.[0];
   if (pin) out.pinflMrz = pin;
   const dobRaw = digits(l2.slice(0, 6));
-  if (/^\d{6}$/.test(dobRaw) && checkDigit(dobRaw) === digits(l2[6] || "")) out.birthday = yymmddToDate(dobRaw);
+  if (/^\d{6}$/.test(dobRaw) && checkDigit(dobRaw) === digits(l2[6] || "")) {
+    out.birthday = yymmddToDate(dobRaw);
+    if (/^[MF]$/.test(l2[7] || "")) out.sex = l2[7]; // jins faqat qator to'g'ri o'qilganda (sana tekshiruvdan o'tsa)
+  }
   if (l3) Object.assign(out, namesFromMrz(l3));
   return out;
 }
@@ -176,7 +228,10 @@ function parseTd3(lines) {
   if (doc && checkDigit(doc) === digits(l2[9] || "")) out.series = doc;
   else out.seriesRaw = l2.slice(0, 10);
   const dobRaw = digits(l2.slice(13, 19));
-  if (/^\d{6}$/.test(dobRaw) && checkDigit(dobRaw) === digits(l2[19] || "")) out.birthday = yymmddToDate(dobRaw);
+  if (/^\d{6}$/.test(dobRaw) && checkDigit(dobRaw) === digits(l2[19] || "")) {
+    out.birthday = yymmddToDate(dobRaw);
+    if (/^[MF]$/.test(l2[20] || "")) out.sex = l2[20];
+  }
   const pin = digits(l2.slice(28, 42));
   if (/^\d{14}$/.test(pin) && checkDigit(pin) === digits(l2[42] || "")) out.pinflMrz = pin;
   else if (/^\d{14}$/.test(pin)) out.pinflMrzWeak = pin;
@@ -258,6 +313,89 @@ function pickPatronymic(lines) {
 function suffixFix(word) {
   if (/^q[il1]?z+[il1]{1,2}$/i.test(word)) return "qizi";
   if (/^[ou0]{0,2}'?g'?l[il1y]$/i.test(word)) return "o'g'li";
+  return "";
+}
+
+// ---------- ism-familiyani tanlash: bir necha o'qish + MRZ bilan solishtirish ----------
+const APOS = /[‘’ʻʼ`´]/g;
+
+// MRZ'da Y va apostrof tushib qoladi (TURSUNBOEV, MAMAQOZIEVA): solishtirish uchun ularsiz ko'rinish
+const bareY = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "").replace(/Y(?=[AEIOU])/g, "");
+
+// MRZ yozuvini o'zbekcha ko'rinishga yaqinlashtiramiz: unli + E → unli + YE (BOEV → BOYEV, ALIEVA → ALIYEVA)
+function uzbekify(name) {
+  return String(name || "").toUpperCase().replace(/([AEIOU])E/g, "$1YE");
+}
+
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const cur = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
+// Yorliq yonidan olingan qiymatning birinchi so'zi (yon ustundagi "ERKAK" kabi so'zlar tushib qoladi)
+function nameWord(raw) {
+  const word = nameish(raw).toUpperCase().replace(APOS, "'").replace(/[^A-Z' ]/g, " ").trim().split(/\s+/)[0] || "";
+  return word.replace(/^'+|'+$/g, "");
+}
+
+// Eng ko'p uchragani; teng bo'lsa — harflari ko'prog'i (Y va apostrof saqlangani)
+function mostVoted(words) {
+  const counts = new Map();
+  for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0]?.[0] || "";
+}
+
+/**
+ * Familiya yoki ism: hujjatdagi bosma yozuv (apostrof va Y bilan) afzal, lekin faqat MRZ bilan mos kelsa.
+ * fromText — yorliq yonidan topilganlar, allWords — matndagi barcha so'zlar, mrz — { value, votes }
+ */
+function chooseName(fromText, allWords, mrz) {
+  const cands = fromText.map(nameWord).filter((w) => w.replace(/'/g, "").length >= 2 && !LABEL_WORDS.test(w));
+  if (!mrz?.value) {
+    const solid = cands.filter((w) => w.replace(/'/g, "").length >= 3);
+    return mostVoted(solid.length ? solid : cands);
+  }
+  // MRZ'da "<<" ba'zan "<K" bo'lib o'qiladi (KBEKZOD) — boshidagi K/L ni olib tashlangan ko'rinishi ham nomzod
+  const targets = [bareY(mrz.value)];
+  if (/^[KL]/.test(mrz.value)) targets.push(bareY(mrz.value.slice(1)));
+  const fits = (w) => targets.includes(bareY(w));
+  // 1) yorliq yonidagi qiymat MRZ bilan aynan mos  2) matnning istalgan joyidagi mos so'z.
+  // Pasportda ism ikki sahifada (o'zbekcha TURSUNBOYEV, inglizcha TURSUNBOEV) — harflari ko'prog'i (o'zbekchasi) olinadi
+  const longest = (list) => [...list].sort((a, b) => b.length - a.length || list.filter((x) => x === b).length - list.filter((x) => x === a).length)[0];
+  const exact = cands.filter(fits);
+  if (exact.length) return longest(exact);
+  const anywhere = allWords.filter(fits);
+  if (anywhere.length) return longest(anywhere);
+  // Bosma yozuv MRZ'ga yaqin (1–2 harf farq) — bosma yozuv ko'pincha aniqroq; MRZ — faqat bosma yozuv umuman boshqacha bo'lsa
+  const near = cands.filter((w) => targets.some((t) => editDistance(bareY(w), t) <= 2));
+  if (near.length) return mostVoted(near);
+  const fromMrz = mrz.value; // KARIMOV kabi K bilan boshlanadigan familiyalar ham bor — K ni o'zboshimcha olib tashlamaymiz
+  return mrz.votes >= 2 || !cands.length ? uzbekify(fromMrz) : mostVoted(cands);
+}
+
+// Otasining ismi + qo'shimcha: MRZ'dagi jins bo'yicha qo'shimcha to'ldiriladi/tuzatiladi (IXTIYOR → IXTIYOR O'G'LI)
+function finishPatronymic(value, sex) {
+  const words = String(value || "").toUpperCase().replace(APOS, "'").split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+  if (words.length === 1 && /(OVICH|EVICH|OVNA|EVNA)$/.test(words[0])) return words[0];
+  const last = words[words.length - 1];
+  const hasSuffix = words.length > 1 && suffixFix(last);
+  const want = sex === "F" ? "QIZI" : sex === "M" ? "O'G'LI" : "";
+  if (hasSuffix) {
+    if (!want) return words.join(" ");
+    return [...words.slice(0, -1), want].join(" ");
+  }
+  // Qo'shimchasiz: jins ma'lum bo'lsa — birinchi so'z (otaning ismi) + qo'shimcha; aks holda ishonchsiz
+  if (want && words[0].replace(/'/g, "").length >= 3) return `${words[0]} ${want}`;
   return "";
 }
 
@@ -492,16 +630,33 @@ export async function readDocument({ docType, front, back }) {
       ];
       zoneText = zones.join("\n");
       const parse = docType === "passport" ? parseTd3 : parseTd1;
+      // Ism, familiya va jinsda tekshiruv raqami yo'q — o'qishlar bo'yicha ovoz beramiz
+      const VOTED = ["surname", "given", "sex"];
+      const votes = Object.fromEntries(VOTED.map((key) => [key, []]));
       for (const zone of zones) {
         const found = parse(mrzLines(zone));
-        for (const [key, value] of Object.entries(found)) if (value && !mrz[key]) mrz[key] = value;
+        for (const [key, value] of Object.entries(found)) {
+          if (!value) continue;
+          if (VOTED.includes(key)) votes[key].push(value);
+          else if (!mrz[key]) mrz[key] = value;
+        }
         if (found.seriesRaw) seriesRaws.push(found.seriesRaw);
+      }
+      for (const key of VOTED) {
+        const list = votes[key].filter((v) => key === "sex" || v.length >= 2);
+        const value = mostVoted(list);
+        if (value) {
+          mrz[key] = value;
+          mrz[`${key}Votes`] = list.filter((v) => v === value).length;
+        }
       }
       if (process.env.OCR_DEBUG) console.error("[ocr] zones:", JSON.stringify(zones.slice(0, 2)));
     }
     let frontText = docType === "passport" ? texts.join("\n") : "";
     if (docType !== "passport" && front) {
-      frontText = await recognizeText(await prepare(front));
+      // ID karta old tomoni: ism-familiya shu yerda — bir necha xil ishlov bilan o'qib, ovoz beramiz
+      const img = await prepare(front);
+      frontText = [await recognizeText(img), await recognizeTopVariants(img, "front")].join("\n");
       texts.push(frontText);
     }
     const allText = texts.join("\n");
@@ -511,34 +666,24 @@ export async function readDocument({ docType, front, back }) {
     // Ism-familiya: old tomondagi yozuv (apostrof bilan), MRZ bilan solishtiriladi
     // Pasportda ism ikki joyda: o'zbekcha sahifada (TURSUNBOYEV) va inglizcha sahifada (TURSUNBOEV).
     // MRZ bilan mos (Y hisobga olinmaganda) nomzodlardan o'zbekcha — harflari ko'prog'i olinadi
-    const bareY = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "").replace(/Y(?=[AEOU])/g, "");
-    const pickName = (list, fromMrz) => {
-      if (!list.length) return "";
-      if (!fromMrz) return list[0];
-      const fit = list.filter((c) => bareY(c) === bareY(fromMrz));
-      if (!fit.length) return list[0];
-      return fit.sort((a, b) => b.replace(/[^A-Z]/gi, "").length - a.replace(/[^A-Z]/gi, "").length)[0];
-    };
-    const surFront = pickName(labelValues(frontLines, /(fam[il1]\w*|surname)/i), mrz.surname);
-    const givenFront = pickName(labelValues(frontLines, /(ismi|given\s*name)/i), mrz.given);
-    const patronymic = pickPatronymic(frontLines);
-    // Old tomondagi qalin yozuv aniqroq (apostrof ham bor); MRZ — faqat old tomonda topilmasa
-    // Old tomonda harflar MRZ bilan bir xil bo'lsa — ortiqcha bo'shliqlarni olib tashlaymiz (TURSU NBAYEV → TURSUNBAYEV),
-    // apostroflar esa old tomondan qoladi (MRZ da apostrof bo'lmaydi)
-    const reconcile = (front, fromMrz) => {
-      if (!front) return fromMrz || "";
-      if (!fromMrz) return front;
-      const bare = (s) => s.toUpperCase().replace(/[^A-Z]/g, "");
-      if (bare(front) === bare(fromMrz) && !/\s/.test(fromMrz.trim())) return front.replace(/\s+/g, "");
-      return front;
-    };
-    const surname = reconcile(surFront, mrz.surname);
-    const given = reconcile(givenFront, mrz.given);
-    if (surname) out.surname = titleCase(surname);
-    if (given) out.given = titleCase(given);
-    // Yorliq yonidan topilgan otasining ismi har qanday ko'rinishda bo'lishi mumkin: BOBUR QIZI, ALIYEVICH
-    const patronymicClean = patronymic.replace(/[^A-ZʻʼО'‘’` ]/gi, " ").replace(/\s+/g, " ").trim();
-    if (patronymicClean.length >= 3) out.patronymic = titleCase(patronymicClean);
+    // Matndagi barcha so'zlar (yorliq o'qilmay qolsa ham MRZ'dagi ismga mos so'zni topish uchun);
+    // OCR so'z ichiga bo'shliq qo'yishi mumkin (TURSU NBOYEV) — qo'shni ikki so'zni birlashtirib ham qaraymiz
+    const allWords = [];
+    for (const line of frontLines) {
+      const words = nameish(line).toUpperCase().replace(APOS, "'").replace(/[^A-Z' ]/g, " ").split(/\s+/).filter((w) => w.length >= 2);
+      words.forEach((w, i) => {
+        allWords.push(w);
+        if (words[i + 1]) allWords.push(w + words[i + 1]);
+      });
+    }
+    const surname = chooseName(labelValues(frontLines, /(fam[il1]\w*|surname)/i), allWords, mrz.surname && { value: mrz.surname, votes: mrz.surnameVotes });
+    const given = chooseName(labelValues(frontLines, /(\bism[il1]?\b|given\s*name)/i), allWords, mrz.given && { value: mrz.given, votes: mrz.givenVotes });
+    // O'zbek lotin yozuvida unlidan keyin "e" emas, "ye" yoziladi — faqat inglizcha sahifa o'qilgan bo'lsa ham to'g'ri chiqadi
+    if (surname) out.surname = titleCase(uzbekify(surname));
+    if (given) out.given = titleCase(uzbekify(given));
+    // Otasining ismi MRZ'da yo'q — bir necha o'qishdan ovoz bilan; qo'shimchasi jinsga qarab to'g'rilanadi
+    const patronymicClean = finishPatronymic(pickPatronymic(frontLines).replace(/[^A-Z'‘’ʻʼ` ]/gi, " ").replace(/\s+/g, " ").trim(), mrz.sex);
+    if (patronymicClean.replace(/[^A-Z]/gi, "").length >= 3) out.patronymic = titleCase(patronymicClean);
     if (out.surname && out.given && out.patronymic) out.fullName = `${out.surname} ${out.given} ${out.patronymic}`;
 
     const series = mrz.series || seriesFromText(allText, seriesRaws);
