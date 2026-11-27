@@ -28,6 +28,7 @@ const statusEl = document.querySelector("#status-filter");
 const sortEl = document.querySelector("#sort-filter");
 const dateFromEl = document.querySelector("#date-from");
 const dateToEl = document.querySelector("#date-to");
+const shiftEl = document.querySelector("#shift-filter");
 const statsEl = document.querySelector("#stats");
 const detail = document.querySelector("#detail");
 const detailBody = document.querySelector("#detail-body");
@@ -736,6 +737,33 @@ function dateMatch(item) {
   return true;
 }
 
+// Ish vaqti matnidan smenani aniqlaymiz: bot tugmalari ("1-Smena ...", "2-Smena ...", "To'liq smena ...")
+// yoki qo'lda yozilgan vaqt oralig'i ("08:00-14:00")
+function shiftKey(item) {
+  const raw = String(item?.workHours || "").trim().toLowerCase();
+  if (!raw) return "other";
+  if (/^1\s*-?\s*smena/.test(raw)) return "1";
+  if (/^2\s*-?\s*smena/.test(raw)) return "2";
+  if (/to.?liq/.test(raw)) return "full";
+  const times = [...raw.matchAll(/(\d{1,2})[:.](\d{2})/g)].map((m) => Number(m[1]) + Number(m[2]) / 60);
+  if (times.length >= 2) {
+    const [start, end] = times;
+    if (start < 12 && end >= 18) return "full";
+    if (start < 12) return "1";
+    return "2";
+  }
+  return "other";
+}
+
+function shiftMatch(item) {
+  const want = shiftEl?.value || "";
+  return !want || shiftKey(item) === want;
+}
+
+function periodMatch(item) {
+  return dateMatch(item) && shiftMatch(item);
+}
+
 function statusMatch(item) {
   if (activeStatus === "none" || activeStatus === "expected" || activeStatus === "arrived" || activeStatus === "missed" || activeStatus === "hired" || activeStatus === "started" || activeStatus === "left" || activeStatus === "declined") {
     return interviewKey(item.interviewStatus) === activeStatus;
@@ -1310,8 +1338,8 @@ function fillSelect(select, options, current) {
 }
 
 function render() {
-  const found = searchedItems().filter(dateMatch).filter(statusMatch);
-  const dated = allItems.filter(dateMatch);
+  const found = searchedItems().filter(periodMatch).filter(statusMatch);
+  const dated = allItems.filter(periodMatch);
   const counts = new Map();
   for (const item of found) {
     const key = item.position || "Yo‘nalishsiz";
@@ -1325,7 +1353,7 @@ function render() {
 
   if (latestNoteEl) latestNoteEl.textContent = `So‘nggi ariza: ${latest}`;
 
-  const searchedDated = searchedItems().filter(dateMatch);
+  const searchedDated = searchedItems().filter(periodMatch);
   const tileCount = (key) => searchedDated.filter((item) => interviewKey(item.interviewStatus) === key).length;
   const tiles = [
     ["", archiveMode ? "Arxivda" : "Jami arizalar", searchedDated.length, `${directionCount} ta yo‘nalish`],
@@ -3451,6 +3479,7 @@ searchEl.addEventListener("input", () => {
   [statusEl, "change"],
   [dateFromEl, "change"],
   [dateToEl, "change"],
+  [shiftEl, "change"],
 ].forEach(([el, type]) => el?.addEventListener(type, resetPaging, true));
 
 // ===== Qidiruv ostidagi natijalar ro'yxati =====
@@ -3571,11 +3600,13 @@ sortEl.addEventListener("change", () => {
     activeStatus = "";
     dateFromEl.value = "";
     dateToEl.value = "";
+    if (shiftEl) shiftEl.value = "";
     syncDateField(dateFromEl);
     syncDateField(dateToEl);
   }
   render();
 });
+shiftEl?.addEventListener("change", render);
 function syncDateField(input) {
   input.classList.toggle("has-value", Boolean(input.value));
 }
@@ -3608,6 +3639,7 @@ document.querySelector("#reset-filters").addEventListener("click", () => {
   searchEl.value = "";
   dateFromEl.value = "";
   dateToEl.value = "";
+  if (shiftEl) shiftEl.value = "";
   syncDateField(dateFromEl);
   syncDateField(dateToEl);
   render();
