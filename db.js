@@ -1246,6 +1246,19 @@ export async function saveApplication({ telegramUserId, username, answers }) {
 // Xodimning eng oxirgi (arxivlanmagan) arizasiga yoziladi; arizasi bo'lmasa yangisi ochiladi.
 const CONTRACT_FILE_SLOTS = ["passportFront", "passportBack", "diploma", "diplomaAppendix", "certificate"];
 
+// Bot anketasi oxirigacha to'ldirilgan ariza — yo'nalish (position) faqat anketada so'raladi
+const COMPLETED_SV = { position: { $nin: ["", null] } };
+
+// Xodim shartnomasidan oldin SV to'liq to'ldirilgan bo'lishi shart
+export async function hasCompletedApplication(telegramUserId) {
+  const found = await Application.exists({
+    ownerToken: ownerToken(),
+    telegramUserId: String(telegramUserId),
+    ...COMPLETED_SV,
+  });
+  return Boolean(found);
+}
+
 export async function saveContractSubmission({ telegramUserId, username, answers }) {
   const parts = String(answers.fullName || "").trim().split(/\s+/).filter(Boolean);
   const set = {
@@ -1274,17 +1287,14 @@ export async function saveContractSubmission({ telegramUserId, username, answers
     set[meta.nameField] = String(file.fileName || `${meta.label}.${ext}`).slice(0, 120);
   }
 
-  const existing = await Application.findOne({
-    ownerToken: ownerToken(),
-    telegramUserId: String(telegramUserId),
-    archived: { $ne: true },
-  })
-    .sort({ createdAt: -1 })
-    .select("_id")
-    .lean();
+  // To'liq SV'ga yoziladi: avval faol arizasi, bo'lmasa arxivdagisi (arxivdan qaytariladi)
+  const base = { ownerToken: ownerToken(), telegramUserId: String(telegramUserId), ...COMPLETED_SV };
+  const existing =
+    (await Application.findOne({ ...base, archived: { $ne: true } }).sort({ createdAt: -1 }).select("_id").lean()) ||
+    (await Application.findOne(base).sort({ createdAt: -1 }).select("_id").lean());
 
   if (existing) {
-    await Application.updateOne({ _id: existing._id }, { $set: set });
+    await Application.updateOne({ _id: existing._id }, { $set: { ...set, archived: false, archivedAt: null } });
     return { id: String(existing._id), created: false };
   }
 

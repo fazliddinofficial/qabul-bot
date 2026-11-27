@@ -9,7 +9,7 @@ import {
   WORK_SHIFTS,
   isOwnContact,
 } from "./questions.js";
-import { addJobToUser, connectDb, createUser, getUserById, saveApplication, saveContractSubmission, saveStudentContract, listStudentCourses } from "./db.js";
+import { addJobToUser, connectDb, createUser, getUserById, hasCompletedApplication, saveApplication, saveContractSubmission, saveStudentContract, listStudentCourses } from "./db.js";
 import { registerContractFlow } from "./contract.js";
 import { readDocument as readDocumentImages, warmUpOcr } from "./ocr.js";
 
@@ -282,6 +282,23 @@ const handleContractMessage = registerContractFlow(bot, {
     (await listStudentCourses({ activeOnly: true })).map((course) => ({ id: String(course._id), name: course.name })),
   readDocument: async ({ docType, front, back }) =>
     readDocumentImages({ docType, front: await telegramImage(front), back: await telegramImage(back) }),
+  // Xodim shartnomasi faqat SV (anketa) to'liq to'ldirilgandan keyin
+  canStart: {
+    staff: async (ctx) => {
+      if (await hasCompletedApplication(ctx.from.id)) return true;
+      sessions.delete(ctx.from.id);
+      await ctx.reply(
+        "📝 <b>Avval SV to'ldiring</b>\n\n" +
+          "Xodim shartnomasi uchun ma'lumot yuborishdan oldin botdagi SV (anketa)ni to'liq to'ldirishingiz kerak. " +
+          "SV tugagach, shartnoma uchun ma'lumot yuborishingiz mumkin bo'ladi.",
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([[Markup.button.callback("📝 SV to'ldirish", "startSvForContract")]]),
+        },
+      );
+      return false;
+    },
+  },
   notify: {
     staff: async (answers, result) => {
       if (!CHANNEL_OR_GROUP_TOKEN) return;
@@ -322,6 +339,26 @@ bot.action("firstTime", async (ctx) => {
   let firstQuestion = questions[0];
   await ctx.reply(firstQuestion.text);
 });
+
+// Shartnomadan oldin SV to'ldirish — tugagach shartnoma tugmasi beriladi
+bot.action("startSvForContract", async (ctx) => {
+  await ack(ctx);
+  sessions.set(ctx.from.id, {
+    step: 0,
+    answers: {},
+    questions: [...questions],
+    afterSv: "contract",
+  });
+  await ctx.reply(questions[0].text, { reply_markup: { remove_keyboard: true } });
+});
+
+async function offerContractAfterSv(ctx, session) {
+  if (session.afterSv !== "contract") return;
+  await ctx.reply(
+    "✅ SV to'ldirildi. Endi xodim shartnomasi uchun ma'lumotlaringizni yuborishingiz mumkin.",
+    Markup.inlineKeyboard([[Markup.button.callback("📄 Xodim shartnomasi", "contract:staff")]]),
+  );
+}
 
 bot.action("secondTime", async (ctx) => {
   await ack(ctx);
@@ -555,15 +592,25 @@ bot.on("message", async (ctx) => {
     sessions.delete(ctx.from.id);
   } else {
     const user = foundUser.jobsTitle.includes(session.answers.position);
-    if (user) {
-      ctx.reply(`Siz bu yo'nalishda allaqachon ishga topshirib bo'lgansiz`);
+    // Shartnoma uchun SV to'ldirayotgan, lekin bazada arizasi yo'q (eski) xodimning SV'si saqlanadi
+    const needsSv = session.afterSv === "contract" && !(await hasCompletedApplication(userId).catch(() => true));
+    if (user && !needsSv) {
       sessions.delete(ctx.from.id);
+      await ctx.reply(`Siz bu yo'nalishda allaqachon ishga topshirib bo'lgansiz`);
+      await offerContractAfterSv(ctx, session);
+      return;
+    } else if (user) {
+      await persistApplication(ctx, session);
+      await sendToRecruiter(ctx, session);
+      sessions.delete(ctx.from.id);
+      await offerContractAfterSv(ctx, session);
       return;
     } else {
       await addJobToUser(userId, session.answers.position);
       await persistApplication(ctx, session);
       await sendToRecruiter(ctx, session);
       sessions.delete(ctx.from.id);
+      await offerContractAfterSv(ctx, session);
       return;
     }
   }
@@ -571,6 +618,7 @@ bot.on("message", async (ctx) => {
   await persistApplication(ctx, session);
   await sendToRecruiter(ctx, session);
   sessions.delete(ctx.from.id);
+  await offerContractAfterSv(ctx, session);
 });
 
 async function persistApplication(ctx, session) {

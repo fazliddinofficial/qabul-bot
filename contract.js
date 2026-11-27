@@ -573,7 +573,19 @@ function newSession(flow) {
 }
 
 // saveContract / notify — { staff: fn, student: fn }
-export function registerContractFlow(bot, { sessions, ack, saveContract, notify, listCourses, readDocument }) {
+export function registerContractFlow(bot, { sessions, ack, saveContract, notify, listCourses, readDocument, canStart }) {
+  // Shartnomaga ruxsat yo'q bo'lsa canStart[flow] o'zi javob yozadi va false qaytaradi
+  async function allowed(ctx, flow) {
+    if (!canStart?.[flow]) return true;
+    try {
+      return await canStart[flow](ctx);
+    } catch (error) {
+      console.error("Shartnoma ruxsati tekshirilmadi:", error?.message || error);
+      await ctx.reply("⚠️ Xatolik bo'ldi. Iltimos, birozdan so'ng qayta urinib ko'ring.");
+      return false;
+    }
+  }
+
   // ID karta / pasportning oxirgi rasmi kelgach — rasmlardan ma'lumotlarni o'qib olamiz
   async function runOcr(ctx, session) {
     session.ocr = {};
@@ -624,6 +636,7 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify,
   bot.action(/^contract:(staff|student)$/, async (ctx) => {
     await ack(ctx);
     const flow = ctx.match[1];
+    if (!(await allowed(ctx, flow))) return;
     const session = await startSession(flow);
     sessions.set(ctx.from.id, session);
     await ctx.reply(
@@ -636,7 +649,9 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify,
   bot.action("contractRestart", async (ctx) => {
     await ack(ctx);
     const previous = sessions.get(ctx.from.id);
-    const session = await startSession(previous?.kind === "contract" ? previous.flow || "staff" : "staff");
+    const flow = previous?.kind === "contract" ? previous.flow || "staff" : "staff";
+    if (!(await allowed(ctx, flow))) return;
+    const session = await startSession(flow);
     sessions.set(ctx.from.id, session);
     await ctx.reply("🔁 Boshidan boshlaymiz.");
     await ask(ctx, session);
@@ -652,6 +667,10 @@ export function registerContractFlow(bot, { sessions, ack, saveContract, notify,
     if (session.saving) return;
     session.saving = true;
     const flow = session.flow || "staff";
+    if (!(await allowed(ctx, flow))) {
+      session.saving = false;
+      return;
+    }
     try {
       await ctx.editMessageReplyMarkup(undefined).catch(() => {});
       await ctx.reply("⏳ Saqlanmoqda...");
